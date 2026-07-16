@@ -1,0 +1,129 @@
+<view class="page-pad trends-page">
+  <view class="trends-summary">
+    <text class="trends-summary-title">心理健康趋势与风险</text>
+    <text class="trends-summary-sub">当前评估 · 未来预测 · 异常预警</text>
+  </view>
+
+  <view wx:if="{{!risk.hasAssessment}}" class="trends-empty">完成基线测评或 EMA 打卡后，将展示风险评估与预测信息</view>
+
+  <block wx:if="{{risk.hasAssessment}}">
+    <!-- 1. 当前风险评估 -->
+    <view class="trends-section card risk-card">
+      <view class="panel-tag">01</view>
+      <view class="section-title">当前风险评估</view>
+      <view class="risk-level-row">
+        <view class="risk-badge {{risk.current.levelClass}}">{{risk.current.levelLabel}}</view>
+        <view class="risk-meta">
+          <text class="risk-score">风险指数 {{risk.current.score}}</text>
+          <text class="risk-updated">{{risk.current.updatedLabel}}</text>
+        </view>
+      </view>
+      <view class="risk-summary">{{risk.current.summary}}</view>
+      <view class="risk-factors" wx:if="{{risk.current.factors.length > 0}}">
+        <view class="risk-factor" wx:for="{{risk.current.factors}}" wx:key="label">
+          <text class="risk-factor-label">{{item.label}}</text>
+          <text class="risk-factor-value">{{item.value}}</text>
+          <text class="risk-factor-source">{{item.source}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 2. 未来7天风险预测 -->
+    <view class="trends-section card forecast-card">
+      <view class="panel-tag panel-tag--forecast">02</view>
+      <view class="section-title">未来 7 天风险预测</view>
+      <view class="forecast-head">
+        <view class="forecast-trend">
+          <text class="forecast-trend-label">趋势走向</text>
+          <text class="forecast-trend-value">{{risk.forecast.trendLabel}}</text>
+        </view>
+        <view class="risk-badge {{risk.forecast.peakLevelClass}}">{{risk.forecast.peakLevelLabel}}</view>
+      </view>
+      <view class="risk-summary">{{risk.forecast.summary}}</view>
+      <view class="forecast-chart">
+        <view class="forecast-day" wx:for="{{risk.forecast.days}}" wx:key="dayIndex">
+          <text class="forecast-date">{{item.dateLabel}}</text>
+          <view class="forecast-bar-wrap">
+            <view class="forecast-bar forecast-bar-{{item.level}}" style="width: {{item.barWidth}}%;" />
+          </view>
+          <text class="forecast-score">{{item.score}}</text>
+        </view>
+      </view>
+      <view class="forecast-legend">
+        <text class="legend-item legend-low">低</text>
+        <text class="legend-item legend-medium">中</text>
+        <text class="legend-item legend-high">高</text>
+      </view>
+    </view>
+
+    <!-- 3. 个体异常预警 -->
+    <view class="trends-section card alert-card">
+      <view class="panel-tag panel-tag--alert">03</view>
+      <view class="section-title">个体异常预警</view>
+      <view wx:if="{{risk.alertCount === 0}}" class="risk-no-alert">暂无异常信号，状态整体平稳。</view>
+      <view class="alert-item alert-{{item.level}}" wx:for="{{risk.alerts}}" wx:key="id">
+        <view class="alert-title">{{item.title}}</view>
+        <view class="alert-desc">{{item.desc}}</view>
+      </view>
+    </view>
+
+		<!-- 4. 打卡概况 -->
+		<view class="trends-section card record-card">
+      <view class="panel-tag panel-tag--record">04</view>
+      <view class="section-title">打卡概况</view>
+      <view wx:if="{{!hasData}}" class="risk-no-alert">暂无打卡概况数据。</view>
+			<view wx:else>
+				<view class="hint">连续缺测：{{stats.missedDays}} 天</view>
+				<view class="hint">平均日记字数：{{stats.avgDiaryWords}}</view>
+				<view class="hint">平均语音时长：{{stats.avgVoiceSec}} 秒</view>
+			</view>
+    </view>
+  </block>
+
+  <!-- 历史趋势（折叠在风险模块下方） -->
+  <view class="trends-divider" wx:if="{{hasData && risk.hasAssessment}}">
+    <text class="trends-divider-text">历史数据趋势</text>
+  </view>
+
+  <view class="trends-section card" wx:if="{{hasData}}">
+    <view class="section-title">EMA 指标（0–10）</view>
+    <view class="metric-block" wx:for="{{metrics}}" wx:key="id">
+      <view class="metric-title">{{item.label}}</view>
+      <view class="trend-row" wx:for="{{item.points}}" wx:for-item="point" wx:key="dateLabel">
+        <text class="trend-date">{{point.dateLabel}}</text>
+        <view class="trend-bar-wrap">
+          <view
+            class="trend-bar trend-bar-ema"
+            style="width: {{point.barWidth}}%;"
+            wx:if="{{point.hasData}}"
+          />
+          <text class="trend-empty" wx:else>—</text>
+        </view>
+        <text class="trend-value">{{point.hasData ? point.value : ''}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="trends-section card" wx:if="{{stepsTrend.length > 0 && hasData}}">
+    <view class="section-title">运动步数</view>
+    <view class="steps-meta">
+      <text>今日 {{stepsAnalytics.today || 0}} 步</text>
+      <text>7 日均 {{stepsAnalytics.avg7 || 0}} 步</text>
+      <text wx:if="{{stepsAnalytics.baseline}}">基线 {{stepsAnalytics.baseline}} 步</text>
+    </view>
+    <view class="trend-row" wx:for="{{stepsTrend}}" wx:key="dateLabel">
+      <text class="trend-date">{{item.dateLabel}}</text>
+      <view class="trend-bar-wrap">
+        <view
+          class="trend-bar trend-bar-steps"
+          style="width: {{item.barWidth}}%;"
+          wx:if="{{item.hasData}}"
+        />
+        <text class="trend-empty" wx:else>—</text>
+      </view>
+      <text class="trend-value">{{item.hasData ? item.steps : ''}}</text>
+    </view>
+  </view>
+
+
+</view>

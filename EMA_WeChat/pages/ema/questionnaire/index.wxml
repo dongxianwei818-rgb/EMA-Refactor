@@ -1,0 +1,17 @@
+<view class="page-pad">
+  <view class="hint">每日 EMA（约 30–60 秒）· 0–10 分滑动选择，是后续模型的重要标签</view>
+  <view class="card" wx:for="{{questions}}" wx:key="id">
+    <text style="font-size:30rpx;font-weight:500;">{{item.label}}</text>
+    <block wx:if="{{item.type==='scale10'}}">
+      <slider min="0" max="10" step="1" show-value value="{{answers[item.id]}}" data-id="{{item.id}}" bindchange="onScale" />
+    </block>
+    <block wx:else>
+      <radio-group data-id="{{item.id}}" bindchange="onTernary">
+        <label wx:for="{{item.options}}" wx:for-item="opt" wx:key="*this" style="display:block;padding:12rpx 0;">
+          <radio value="{{opt}}" checked="{{answers[item.id]===opt}}" />{{opt}}
+        </label>
+      </radio-group>
+    </block>
+  </view>
+  <button class="btn-primary" bindtap="onSubmit" disabled="{{submitting}}" loading="{{submitting}}">提交问卷</button>
+</view>

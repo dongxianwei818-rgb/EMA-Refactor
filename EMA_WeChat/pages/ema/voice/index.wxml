@@ -1,0 +1,22 @@
+<view class="page-pad" style="text-align:center;">
+  <view class="hint hint-voice">每 {{voiceIntervalDays}} 天 1 次 · 每次5-60秒 · 停止后自动进入下一步</view>
+  <view class="card" style="text-align:left;"><text>{{prompt}}</text></view>
+  <view wx:if="{{intervalMode !== 'none'}}" class="card interval-hint" style="text-align:left;">
+    <text>{{intervalHint}}</text>
+  </view>
+  <view class="hint" style="text-align:left;">自然叙述即可，{{minSec}}–{{maxSec}} 秒。停止后自动进入下一步。</view>
+  <view style="font-size:56rpx;margin:48rpx 0;">{{recordText}}</view>
+
+  <button wx:if="{{phase === 'idle' && !submitting && intervalMode === 'choice'}}" class="btn-primary" bindtap="skipToNext">直接进行下一步</button>
+  <button wx:if="{{phase === 'idle' && !submitting && intervalMode === 'choice'}}" class="btn-secondary" bindtap="chooseReRecord">重新录制</button>
+  <button wx:if="{{phase === 'idle' && !submitting && (intervalMode === 'none' || intervalMode === 'recording')}}" class="btn-primary" bindtap="startRecord">开始录音</button>
+  <button wx:if="{{phase === 'recording'}}" class="btn-primary" style="background:#e34d59!important;" bindtap="stopRecord">停止</button>
+  <button wx:if="{{phase === 'idle' && !submitting && intervalMode === 'recording'}}" class="btn-secondary" bindtap="skipToNext">直接进行下一步</button>
+  <button
+    wx:if="{{phase === 'idle' && !submitting && (intervalMode === 'none' || intervalMode === 'recording')}}"
+    class="btn-secondary"
+    bindtap="onSkip"
+  >跳过今日语音</button>
+
+  <view wx:if="{{phase === 'processing' || phase === 'submitting' || submitting}}" class="hint">请稍候，正在提交…</view>
+</view>

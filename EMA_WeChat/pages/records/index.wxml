@@ -1,0 +1,32 @@
+<view class="page-pad records-page">
+  <view class="records-summary" wx:if="{{sessions.length > 0}}">
+    <text class="records-summary-count">{{sessions.length}}</text>
+    <text class="records-summary-label">次打卡记录</text>
+    <text class="records-summary-sub">共 {{totalCount}} 条采集项</text>
+  </view>
+
+  <view wx:if="{{sessions.length === 0}}" class="records-empty">暂无采集记录</view>
+
+  <view class="session-group" wx:for="{{sessions}}" wx:key="key">
+    <view class="session-header">
+      <view class="session-header-left">
+        <view class="session-badge">第 {{item.sessionId}} 次打卡</view>
+        <view class="session-date">{{item.dateLabel}}</view>
+      </view>
+      <view class="session-header-right">
+        <view class="session-count">{{item.itemCount}} 项</view>
+        <view class="session-time">{{item.timeRange}}</view>
+      </view>
+    </view>
+
+    <view class="session-body">
+      <view class="record-item" wx:for="{{item.items}}" wx:for-item="record" wx:key="id">
+        <view class="record-item-type type-{{record.type}}">{{record.typeLabel}}</view>
+        <view class="record-item-main">
+          <view class="record-item-summary">{{record.summary}}</view>
+          <view class="record-item-time">{{record.timeLabel}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

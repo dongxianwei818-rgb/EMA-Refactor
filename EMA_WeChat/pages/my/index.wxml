@@ -1,0 +1,36 @@
+<view class="page-pad">
+  <view class="card profile-card" >
+    <view class="profile-card-head">
+      <view class="section-title">基本信息</view>
+      <text class="profile-more" bindtap="goProfileDetail" wx:if="{{hasBaseline}}">查看详情 ›</text>
+      <text class="profile-more" wx:else>去填写 ›</text>
+    </view>
+    <block wx:if="{{hasBaseline}}">
+      <view class="profile-id" wx:if="{{profile.researchId}}">研究编号 {{profile.researchId}}</view>
+      <view class="profile-row" wx:for="{{basicInfo}}" wx:key="label">
+        <text class="profile-label">{{item.label}}</text>
+        <text class="profile-value">{{item.value}}</text>
+      </view>
+      <view class="profile-empty" wx:if="{{!basicInfo.length && !profile.researchId}}">暂无已填写的基本信息</view>
+    </block>
+    <view class="profile-empty" wx:else>尚未完成基线测评，点击前往填写。</view>
+  </view>
+
+  <view class="card profile-card">
+    <view class="profile-card-head">
+      <view class="section-title">使用行为</view>
+      <text class="profile-more" bindtap="goBehaviorDetail">查看详情 ›</text>
+    </view>
+    <view class="hint">打开次数：{{stats.openCount}}</view>
+    <view class="hint">连续缺测天数：{{stats.missedDays}}（缺测模式可作研究信号）</view>
+    <view class="hint">平均日记字数：{{stats.avgDiaryWords}}</view>
+    <view class="hint">平均语音时长(秒)：{{stats.avgVoiceSec}}</view>
+    <view class="hint">平均视频时长(秒)：{{stats.avgVideoSec}}</view>
+    <view class="hint">语音跳过次数：{{stats.voiceSkips}}</view>
+    <view class="hint">视频跳过次数：{{stats.videoSkips}}</view>
+    <view class="hint">最近打卡时段(时)：{{stats.checkinHours}}</view>
+  </view>
+  <button class="btn-secondary" bindtap="goConsent">查看知情同意</button>
+  <button class="btn-revoke" wx:if="{{hasConsent}}" bindtap="onRevokeConsent">撤回授权</button>
+  <button class="btn-secondary" bindtap="exitStudy">退出研究</button>
+</view>

@@ -1,0 +1,36 @@
+.task-card--active {
+  border: 1rpx solid rgba(7, 193, 96, 0.35);
+}
+
+.task-status {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+
+.task-status.done {
+  color: #07c160;
+  background: #e8f8ee;
+}
+
+.task-status.skip {
+  color: #999;
+  background: #f0f0f0;
+}
+
+.task-status.todo {
+  color: #0052d9;
+  background: #e8f4ff;
+}
+
+.task-tap-hint {
+  color: #07c160;
+  margin-top: 8rpx;
+}
+
+.baseline-tip {
+  background: #fff8e6;
+  color: #996600;
+  font-size: 26rpx;
+  text-align: center;
+}

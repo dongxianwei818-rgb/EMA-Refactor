@@ -1,0 +1,44 @@
+<view class="page-pad">
+  <view class="hint">每 {{videoIntervalDays}} 天 1 次 · 正脸自拍 · 光线充足 · 停止后自动进入下一步</view>
+  <view wx:if="{{intervalMode !== 'none'}}" class="card interval-hint">
+    <text>{{intervalHint}}</text>
+  </view>
+  <view class="card">
+    <!-- <view class="hint">固定问题</view> -->
+    <text class="q-text">{{question}}</text>
+  </view>
+  <label class="hide-row">
+    <checkbox checked="{{hideFace}}" bindtap="toggleHide" />
+    <text>不露脸（切换为后置摄像头）</text>
+  </label>
+
+  <camera
+    wx:if="{{!cameraError}}"
+    id="emaCamera"
+    class="camera-box"
+    mode="normal"
+    device-position="{{cameraPosition}}"
+    flash="off"
+    resolution="medium"
+    bindready="onCameraReady"
+    binderror="onCameraError"
+  />
+  <view wx:else class="camera-box camera-placeholder">未找到摄像头，请使用下方系统相机</view>
+
+  <view class="record-status">{{recordText}}</view>
+
+  <button wx:if="{{phase === 'idle' && !submitting && intervalMode === 'choice'}}" class="btn-primary" bindtap="skipToNext">直接进行下一步</button>
+  <button wx:if="{{phase === 'idle' && !submitting && intervalMode === 'choice'}}" class="btn-secondary" bindtap="chooseReRecord">重新录制</button>
+  <button wx:if="{{phase === 'idle' && !submitting && (intervalMode === 'none' || intervalMode === 'recording')}}" class="btn-primary" bindtap="startCameraRecord">开始录制</button>
+  <button wx:if="{{phase === 'recording'}}" class="btn-primary btn-stop" bindtap="stopCameraRecord">停止录制</button>
+  <!-- <button
+    wx:if="{{(phase === 'idle' || cameraError) && (intervalMode === 'none' || intervalMode === 'recording')}}"
+    class="btn-secondary"
+    bindtap="openSystemCamera"
+  >使用系统相机拍摄（推荐模拟器使用）</button> -->
+  <button wx:if="{{phase === 'idle' && !submitting && intervalMode === 'recording'}}" class="btn-secondary" bindtap="skipToNext">直接进行下一步</button>
+
+  <button wx:if="{{phase === 'idle' && !submitting && (intervalMode === 'none' || intervalMode === 'recording')}}" class="btn-secondary" bindtap="onSkip">跳过今日视频</button>
+
+  <view wx:if="{{phase === 'processing' || phase === 'submitting' || submitting}}" class="hint">请稍候，正在提交…</view>
+</view>

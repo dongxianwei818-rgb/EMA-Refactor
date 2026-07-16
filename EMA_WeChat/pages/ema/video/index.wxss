@@ -1,0 +1,54 @@
+.q-text {
+  font-size: 30rpx;
+  line-height: 1.5;
+  margin-bottom: 20rpx;
+}
+
+.hide-row {
+  display: flex;
+  align-items: center;
+  margin: 16rpx 0 24rpx;
+  font-size: 26rpx;
+}
+
+.camera-box {
+  width: 100%;
+  height: 420rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  background: #000;
+}
+
+.camera-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 28rpx;
+  text-align: center;
+  padding: 24rpx;
+  box-sizing: border-box;
+  background: #eee;
+}
+
+.video-preview {
+  width: 100%;
+  height: 420rpx;
+  border-radius: 16rpx;
+}
+
+.record-status {
+  text-align: center;
+  font-size: 28rpx;
+  color: #666;
+  margin: 20rpx 0;
+}
+
+.center {
+  text-align: center;
+  margin: 12rpx 0;
+}
+
+.btn-stop {
+  background: #e34d59 !important;
+}

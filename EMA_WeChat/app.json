@@ -1,0 +1,60 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/records/index",
+    "pages/trends/index",
+    "pages/resources/index",
+    "pages/my/index",
+    "pages/my/profile-detail/index",
+    "pages/my/behavior-detail/index",
+    "pages/onboarding/consent/index",
+    "pages/onboarding/baseline/index",
+    "pages/ema/questionnaire/index",
+    "pages/ema/diary/index",
+    "pages/ema/voice/index",
+    "pages/ema/video/index",
+    "pages/ema/steps/index"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "心理健康 EMA",
+    "navigationBarBackgroundColor": "#ffffff"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#999999",
+    "selectedColor": "#07c160",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/records/index",
+        "text": "记录"
+      },
+      {
+        "pagePath": "pages/trends/index",
+        "text": "趋势"
+      },
+      {
+        "pagePath": "pages/resources/index",
+        "text": "资源"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "permission": {
+    "scope.record": { "desc": "用于语音任务录制" },
+    "scope.camera": { "desc": "用于视频任务拍摄" },
+    "scope.werun": { "desc": "用于获取微信运动步数，分析活动水平" }
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

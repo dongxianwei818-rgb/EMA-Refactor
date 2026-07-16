@@ -1,0 +1,23 @@
+<view class="page-pad">
+  <view class="hint">关注相对个人基线的偏离，而非绝对步数阈值</view>
+	<view class="hint">可以通过微信运动自动获取，或者手动输入今日步数</view>
+  <view class="card" style="text-align:center;">
+    <view style="font-size:88rpx;color:#07c160;font-weight:700;">{{stepCount}}</view>
+    <text>今日步数</text>
+    <text wx:if="{{stepSource === 'werun'}}" style="display:block;margin-top:8rpx;font-size:24rpx;color:#888;">来源：微信运动</text>
+    <text wx:elif="{{stepSource === 'mock'}}" style="display:block;margin-top:8rpx;font-size:24rpx;color:#888;">来源：模拟</text>
+    <text wx:elif="{{stepSource === 'manual'}}" style="display:block;margin-top:8rpx;font-size:24rpx;color:#888;">来源：手动输入</text>
+  </view>
+  <view class="card" wx:if="{{analytics.baseline}}">
+    <view>个人基线（近7次均值）：{{analytics.baseline}} 步</view>
+    <view style="margin-top:8rpx;">近7天平均：{{analytics.avg7}} 步</view>
+    <view style="margin-top:8rpx;" wx:if="{{analytics.deviation}}">相对基线：{{analytics.deviation}}%</view>
+    <view style="margin-top:8rpx;">连续低步数天数：{{analytics.lowDays}}</view>
+  </view>
+  <button class="btn-primary" bindtap="fetchSteps" loading="{{loading}}">授权微信运动</button>
+  <view class="card" style="margin-top:16rpx">
+		<span>手动输入今日步数</span>
+    <input type="number" bindinput="onManual" style="background:#f5f5f5;padding:16rpx;margin: 16rpx;" />
+  </view>
+  <button class="btn-primary" bindtap="onSubmit" disabled="{{submitting}}" loading="{{submitting}}">完成打卡</button>
+</view>

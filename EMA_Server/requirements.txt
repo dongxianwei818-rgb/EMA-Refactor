@@ -1,0 +1,33 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+sqlalchemy>=2.0.25
+pymysql>=1.1.0
+cryptography>=42.0.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.9
+httpx>=0.27.0
+
+# sentence-transformers 会连带安装 torch、transformers 等，体积较大；首次加载模型还会下载权重。
+# 不配置 TEXT_EMBEDDING_MODEL 时，提取器仍可用，语义向量会走内置的 lexical-proxy-v1。
+# 启用真实 embedding 时，在 .env 中设置例如：
+# 如果未设置 TEXT_EMBEDDING_MODEL，提取器将使用内置的 lexical-proxy-v1 向量。
+# 如果设置了 TEXT_EMBEDDING_MODEL，提取器将使用指定的模型。
+# TEXT_EMBEDDING_MODEL=shibing624/text2vec-base-chinese
+# TEXT_EMBEDDING_MODEL=
+sentence-transformers>=3.0.0
+
+# 语音特性提取：微信小程序 AAC 由 PyAV 解码；系统 ffmpeg CLI 作备用
+# 安装建议：bash scripts/install_requirements.sh（优先 PyAV wheel，无需 pkgconf）
+# ffmpeg CLI：bash scripts/install_audio_deps.sh（静态二进制，比 brew 更快）
+librosa>=0.10.0
+numpy>=1.26.0
+av>=10.0.0
+faster-whisper>=1.0.0
+
+# 视频特性提取（OpenCV 解码 MP4；MediaPipe 面部网格，不可用则回退 OpenCV 人脸检测）
+# mediapipe 会安装 opencv-contrib-python（提供 cv2）；勿与 opencv-python-headless 同装，pip 会冲突
+mediapipe>=0.10.0
+# 仅 mediapipe 不可用时：注释上一行，改用 opencv-python-headless>=4.8.0，并设 VIDEO_FACE_BACKEND=opencv
+

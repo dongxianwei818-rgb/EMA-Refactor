@@ -1,0 +1,19 @@
+node_modules
+dist
+dist-ssr
+.cursor
+.vscode
+EMA_Server/files/video/*
+EMA_Server/files/voice/*
+# 本地 ML 模型（text2vec、whisper 等），勿提交
+EMA_Server/models/
+EMA_Server/.venv
+
+# Python 字节码（任意目录）
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+EMA_Web/node_modules/
+EMA_Web/dist/

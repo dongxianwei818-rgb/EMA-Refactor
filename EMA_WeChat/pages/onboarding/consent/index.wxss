@@ -1,0 +1,74 @@
+.consent-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.review-banner {
+  background: #e8f8ee;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.review-banner--empty {
+  background: #fff8e6;
+  color: #996600;
+  font-size: 26rpx;
+}
+
+.review-status {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #07c160;
+}
+
+.review-time {
+  font-size: 26rpx;
+  color: #666;
+  margin-top: 8rpx;
+}
+
+.review-hint {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+.consent-scroll {
+  flex: 1;
+  height: 0;
+}
+
+.sec-title {
+  font-weight: 600;
+  color: #07c160;
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
+}
+
+.sec-body {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.7;
+}
+
+.footer {
+  padding: 16rpx 0 env(safe-area-inset-bottom);
+}
+
+.agree-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+  font-size: 26rpx;
+}
+
+.agree-row--done {
+  color: #07c160;
+}
+
+.agree-row checkbox {
+  margin-right: 12rpx;
+}

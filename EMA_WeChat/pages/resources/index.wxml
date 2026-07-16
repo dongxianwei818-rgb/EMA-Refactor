@@ -1,0 +1,40 @@
+<view class="page-pad resources-page">
+  <view class="resources-banner">
+    <text class="resources-banner-title">心理健康资源</text>
+    <text class="resources-banner-sub">求助热线、校内支持与自助练习（学校心理中心、热线、预约方式）</text>
+  </view>
+
+  <block wx:for="{{sections}}" wx:for-item="section" wx:key="title">
+    <view class="card resources-section">
+      <view class="section-title">{{section.title}}</view>
+      <view class="hint" wx:if="{{section.hint}}">{{section.hint}}</view>
+
+      <block wx:for="{{section.items}}" wx:for-item="resource" wx:for-index="resourceIndex" wx:key="resourceIndex">
+        <view class="resource-item">
+          <view class="resource-main">
+            <view class="resource-name">{{resource.name}}</view>
+            <view class="resource-desc">{{resource.desc}}  ({{resource.phone}})</view>
+          </view>
+          <button
+            wx:if="{{resource.phone}}"
+            class="resource-action"
+            size="mini"
+            data-phone="{{resource.phone}}"
+            bindtap="onCall"
+          >
+            拨打
+          </button>
+          <button
+            wx:elif="{{resource.copyText}}"
+            class="resource-action resource-action-copy"
+            size="mini"
+            data-text="{{resource.copyText}}"
+            bindtap="onCopy"
+          >
+            复制
+          </button>
+        </view>
+      </block>
+    </view>
+  </block>
+</view>

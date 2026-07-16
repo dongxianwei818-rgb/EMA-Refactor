@@ -1,0 +1,36 @@
+<view class="page-pad consent-page">
+  <view class="section-title">知情同意与隐私授权</view>
+
+  <view class="review-banner" wx:if="{{isReview && hasAnswered}}">
+    <view class="review-status">✓ 您已完成知情同意</view>
+    <view class="review-time">同意时间：{{consentTimeStr}}</view>
+    <view class="review-hint">以下为当时阅读的内容，仅供查阅。</view>
+  </view>
+
+  <view class="review-banner review-banner--empty" wx:if="{{isReview && !hasAnswered}}">
+    <text>您尚未完成知情同意与隐私授权。</text>
+  </view>
+
+  <scroll-view scroll-y class="consent-scroll">
+    <view class="card" wx:for="{{sections}}" wx:key="title">
+      <view class="sec-title">{{item.title}}</view>
+      <text class="sec-body">{{item.content}}</text>
+    </view>
+  </scroll-view>
+
+  <view class="footer" wx:if="{{!isReview}}">
+    <label class="agree-row">
+      <checkbox checked="{{agreed}}" bindtap="toggleAgree" />
+      <text>我已阅读并同意参与本研究</text>
+    </label>
+    <button class="btn-primary" disabled="{{!agreed}}" bindtap="onConfirm">同意并继续</button>
+  </view>
+
+  <view class="footer" wx:if="{{isReview}}">
+    <label class="agree-row agree-row--done">
+      <checkbox checked="{{true}}" disabled />
+      <text>我已阅读并同意参与本研究</text>
+    </label>
+    <button class="btn-secondary" bindtap="onBack">返回</button>
+  </view>
+</view>

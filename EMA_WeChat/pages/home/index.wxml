@@ -1,0 +1,27 @@
+<view class="page-pad">
+  <view style="font-size:40rpx;font-weight:600;">心理健康 EMA</view>
+  <view class="hint">{{today}}</view>
+  <view class="card">
+    <text>今日进度 {{progress.done}}/{{progress.total}}</text>
+    <progress percent="{{progress.percent}}" stroke-width="6" activeColor="#07c160" style="margin-top:16rpx;" />
+  </view>
+  <view
+    class="card task-card {{item.canTap ? 'task-card--active' : ''}}"
+    wx:for="{{taskList}}"
+    wx:key="key"
+    bindtap="onTaskTap"
+    data-key="{{item.key}}"
+    data-can-tap="{{item.canTap}}"
+  >
+    <view style="display:flex;justify-content:space-between;align-items:center;">
+      <text style="font-weight:500;">{{item.name}}</text>
+      <text class="task-status {{item.done?'done':item.skip?'skip':'todo'}}">{{item.done?'已完成':item.skip?'跳过':'待完成'}}</text>
+    </view>
+    <view class="hint">{{item.desc}}</view>
+    <view class="hint task-tap-hint" wx:if="{{item.canTap}}">点击开始此项</view>
+  </view>
+  <button class="btn-primary" bindtap="startFlow">{{checkinComplete ? '重新今日打卡' : '开始今日打卡'}}</button>
+	<view style="text-align: center;margin-top: 16rpx;">
+		<text>点击后，将重新今日打卡</text>
+	</view>
+</view>
