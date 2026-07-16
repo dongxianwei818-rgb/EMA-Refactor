@@ -1,37 +1,47 @@
-# EMA Chat（Vue 3）
+# EMA Web（Vue 3 + Element Plus）
 
-将原 **EMA_Chat 微信小程序**能力重构为 **Vue 3 Web** 端，对接 `EMA_Server` 的 `/api/v1`。
+将原 **EMA_Chat / EMA_WeChat** 能力重构为 **Vue 3 Web** 端，使用 **Element Plus** 组件库，对接 `EMA_Server` 的 `/api/v1`。
 
 登录与后续请求使用 `client_type: "web"`，数据写入 **`ema_web`**（与小程序 `ema`、App `ema_app` 隔离）。JWT 含 `client_type`；HTTP 拦截器同时带 `X-Client-Type: web`。
 
-## 功能对照
+## 主界面模块
 
-| 原小程序 | Vue3 页面 | API |
-|----------|-----------|-----|
-| 知情同意 | `/consent`、`/consent?mode=view`（`views/Consent.vue`） | `GET /consent/status`、`POST /consent/accept-log`、`POST /consent/revoke-log` |
-| 首页 / 登录 | `/` Home | `POST /auth/wx-login`（`client_type: web`）、`GET /feedback`、`GET /risk/assessment` |
-| 对话 | `/chat` | `GET /chat/messages`、`POST /chat/send` |
-| 资源 | `/resources` | `GET /resources` |
+底部 Tab 已移至顶栏右上角（`layouts/MainLayout.vue`），共 **6** 大模块：
 
-未同意时访问首页/对话/资源会自动跳转到 `/consent`（与小程序 onboarding 一致）。
-撤回授权入口在首页（对齐小程序「我的」页），撤回后重新进入 `/consent`。
+| 模块 | 路由 | 页面 | 说明 |
+|------|------|------|------|
+| 首页 | `/home` | `views/Home.vue` | 今日反馈摘要、风险只读、快捷入口 |
+| 记录 | `/records` | `views/Records.vue` | 打卡采集记录（按会话展示，API 待对接） |
+| 趋势 | `/trends` | `views/Trends.vue` | 风险评估与趋势 |
+| 对话 | `/chat` | `views/Chat.vue` | 非诊断支持对话 |
+| 资源 | `/resources` | `views/Resources.vue` | 校园/热线等心理健康资源 |
+| 我的 | `/my` | `views/My.vue` | 账号信息、退出登录、知情同意 |
+| 管理 | `/users` | `views/Users.vue` | **仅管理员**：用户列表增删改查 |
+
+**登录页**：`/login`（`views/Login.vue`）— 用户名 + 密码，调用 `POST /api/v1/auth/login` 校验 `ema_web.users`。  
+默认管理员：`admin` / `123456`（`role=0`，可跳过知情同意，可见「管理」菜单）。未登录访问业务页会跳转到登录页。
+
+用户管理 API（需管理员 JWT）：`/api/web/v1/users`（GET 列表 / POST 创建 / PUT 更新 / DELETE 删除）。
+
+知情同意独立页：`/consent`、`/consent?mode=view`（不显示主导航）。普通用户未同意时访问业务页会跳转到 `/consent`。
+
+---
 
 ## 启动
 
 ```bash
 # 1. 后端
 cd EMA_Server
-# .env 中 MOCK_WX_LOGIN=true（开发）
-python scripts/init_db.py   # 确保 chat_messages 表存在
+python scripts/init_db.py   # 确保 ema_web 有 admin 种子用户
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 2. Chat Web
+# 2. Web
 cd EMA_Web
 npm install
 npm run dev
 ```
 
-浏览器打开：`http://127.0.0.1:5174`
+浏览器打开：`http://127.0.0.1:5174` → 进入登录页，使用 `admin` / `123456` 登录后进入 `/home`。
 
 开发代理：`/api` → `http://127.0.0.1:8000`
 
@@ -41,14 +51,12 @@ npm run dev
 
 ```env
 VITE_API_BASE=/api/v1
-# 与服务端 MOCK_WX_LOGIN 联调的固定 code
-VITE_MOCK_LOGIN_CODE=0f1ffwll2gtyPh40gYml2wB0wl2ffwlv
 ```
 
 ## 说明
 
-- Web 端无 `wx.login`，开发环境用 mock `code` 换 JWT（与 `EMA_WeChat` 联调策略一致）；登录 body 须含 `client_type: "web"`。
-- 服务端 `.env` 中 `DB_NAME_WEB=ema_web`；首次部署请执行 `python scripts/init_db.py` 建齐三库。
+- UI：`element-plus` + `@element-plus/icons-vue`；入口在 `main.js` 全局注册，中文 locale。
+- Web 登录为用户名密码（`user_name` / `psw`），不再使用微信 `code` mock 登录。
+- 服务端 `.env` 中 `DB_NAME_WEB=ema_web`；首次部署请执行 `python scripts/init_db.py` 建齐三库并写入默认管理员。
 - 对话回复为服务端规则化非诊断助手，**不作临床诊断**。
-- 生产环境需改为真实微信登录或独立账号体系，并配置 HTTPS 合法域名。
 - 分库与鉴权细节见仓库根目录 `README.md`「客户端类型与分库」。

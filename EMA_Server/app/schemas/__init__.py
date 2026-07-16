@@ -24,6 +24,18 @@ class WxLoginRequest(BaseModel):
     )
 
 
+class PasswordLoginRequest(BaseModel):
+    """Web 端用户名密码登录。"""
+
+    user_name: str = Field(..., min_length=1, max_length=64, description="登录用户名")
+    psw: str = Field(..., min_length=1, max_length=128, description="登录密码")
+    client_type: str = Field(
+        default="web",
+        description="客户端类型，密码登录仅支持 web",
+        pattern="^web$",
+    )
+
+
 class WxLoginResponse(BaseModel):
     """登录响应。"""
 
@@ -31,6 +43,20 @@ class WxLoginResponse(BaseModel):
     token: str = Field(..., description="JWT 访问令牌（含 client_type）")
     user_id: int = Field(..., description="用户 ID")
     client_type: str = Field(..., description="客户端类型")
+
+
+class PasswordLoginResponse(BaseModel):
+    """Web 密码登录响应。"""
+
+    user_name: str = Field(..., description="登录用户名")
+    token: str = Field(..., description="JWT 访问令牌（含 client_type）")
+    user_id: int = Field(..., description="用户 ID")
+    client_type: str = Field(..., description="客户端类型")
+    role: Optional[int] = Field(default=None, description="0=管理员；1 或空=普通用户")
+    research_id: Optional[str] = Field(default=None, description="研究编号")
+    study_status: str = Field(..., description="研究状态")
+    has_consent: bool = Field(..., description="是否已知情同意")
+    has_baseline: bool = Field(..., description="是否已完成基线")
 
 
 class LoginLogResponse(BaseModel):
@@ -193,7 +219,9 @@ class UserProfileResponse(BaseModel):
     """用户资料响应。"""
 
     user_id: int = Field(..., description="参与记录 id")
-    openid: str = Field(..., description="用户 openid")
+    openid: str = Field(default="", description="用户 openid（wechat/app）；web 时同 user_name")
+    user_name: Optional[str] = Field(default=None, description="登录用户名（web）")
+    role: Optional[int] = Field(default=None, description="0=管理员；1 或空=普通用户（web）")
     research_id: Optional[str] = Field(default=None, description="研究编号")
     login_count: int = Field(..., description="累计登录次数")
     study_status: str = Field(..., description="研究状态")
@@ -268,3 +296,40 @@ class EmaSubmissionSubmitRequest(BaseModel):
     session_id: Optional[int] = Field(default=1, ge=1, description="打卡会话编号")
     task_date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="任务日期")
     client_at: Optional[str] = Field(default=None, description="客户端提交时间 YYYY-MM-DD HH:mm:ss")
+
+
+# ---------- Web 管理端：用户管理 ----------
+
+
+class WebUserCreateRequest(BaseModel):
+    """管理员创建用户。"""
+
+    user_name: str = Field(..., min_length=1, max_length=64, description="登录用户名")
+    psw: str = Field(..., min_length=1, max_length=128, description="登录密码")
+    role: Optional[int] = Field(default=1, description="0=管理员；1=普通用户")
+    research_id: Optional[str] = Field(default=None, max_length=64, description="研究编号")
+    study_status: str = Field(default="active", max_length=32, description="研究状态")
+
+
+class WebUserUpdateRequest(BaseModel):
+    """管理员更新用户（未传字段不修改）。"""
+
+    user_name: Optional[str] = Field(default=None, min_length=1, max_length=64, description="登录用户名")
+    psw: Optional[str] = Field(default=None, min_length=1, max_length=128, description="新密码，不传则不改")
+    role: Optional[int] = Field(default=None, description="0=管理员；1=普通用户")
+    research_id: Optional[str] = Field(default=None, max_length=64, description="研究编号")
+    study_status: Optional[str] = Field(default=None, max_length=32, description="研究状态")
+
+
+class WebUserItem(BaseModel):
+    """用户列表项（不含密码明文展示时可脱敏）。"""
+
+    id: int
+    user_name: str
+    role: Optional[int] = None
+    research_id: Optional[str] = None
+    login_count: int = 0
+    study_status: str = "active"
+    logout_at: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None

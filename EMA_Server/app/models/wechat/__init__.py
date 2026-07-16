@@ -1,37 +1,6 @@
-"""Per-client ORM packages (no shared tables).
+"""wechat client ORM models → database `ema`."""
 
-Use ``models_for(client_type)`` at call time when the request's client is known.
-``from app.models import User`` still resolves to wechat models for backward
-compatibility; prefer ``models_for(...)`` once web/app schemas diverge.
-"""
-
-from types import ModuleType
-
-from app.client_types import (
-    CLIENT_TYPE_APP,
-    CLIENT_TYPE_WEB,
-    CLIENT_TYPE_WECHAT,
-    get_current_client_type,
-    validate_client_type,
-)
-import app.models.app as app_models
-import app.models.web as web_models
-import app.models.wechat as wechat_models
-
-_PACKAGES: dict[str, ModuleType] = {
-    CLIENT_TYPE_WECHAT: wechat_models,
-    CLIENT_TYPE_WEB: web_models,
-    CLIENT_TYPE_APP: app_models,
-}
-
-
-def models_for(client_type: str | None = None) -> ModuleType:
-    """Return the independent model package for a client_type."""
-    return _PACKAGES[validate_client_type(client_type or get_current_client_type())]
-
-
-# Backward-compatible re-exports (wechat). Prefer models_for() for multi-client code.
-from app.models.wechat import (  # noqa: E402
+from app.models.wechat.tables import (
     BaselineProfile,
     BehaviorFeature,
     BehaviorLog,
@@ -64,7 +33,6 @@ from app.models.wechat import (  # noqa: E402
 )
 
 __all__ = [
-    "models_for",
     "BaselineProfile",
     "BehaviorFeature",
     "BehaviorLog",

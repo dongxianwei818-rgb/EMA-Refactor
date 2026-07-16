@@ -1,12 +1,13 @@
 import axios from 'axios'
 import { CLIENT_TYPE, clearAuth, getToken } from './auth'
 
-const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || '/api/v1',
+/** Web 管理端 API（/api/web/v1） */
+const webHttp = axios.create({
+  baseURL: import.meta.env.VITE_WEB_API_BASE || '/api/web/v1',
   timeout: 20000,
 })
 
-http.interceptors.request.use((config) => {
+webHttp.interceptors.request.use((config) => {
   const token = getToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -15,7 +16,7 @@ http.interceptors.request.use((config) => {
   return config
 })
 
-http.interceptors.response.use(
+webHttp.interceptors.response.use(
   (res) => {
     const body = res.data
     if (body && typeof body.code === 'number' && body.code !== 0) {
@@ -37,4 +38,22 @@ http.interceptors.response.use(
   },
 )
 
-export default http
+export function fetchUsers(params = {}) {
+  return webHttp.get('/users', { params })
+}
+
+export function fetchUser(userId) {
+  return webHttp.get(`/users/${userId}`)
+}
+
+export function createUser(payload) {
+  return webHttp.post('/users', payload)
+}
+
+export function updateUser(userId, payload) {
+  return webHttp.put(`/users/${userId}`, payload)
+}
+
+export function deleteUser(userId) {
+  return webHttp.delete(`/users/${userId}`)
+}

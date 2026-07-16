@@ -125,12 +125,12 @@ async function initOnboardingMode() {
     const data = await fetchConsentStatus();
     applyConsentFromServer(data);
     if (data.has_consent) {
-      router.replace("/");
+      router.replace("/home");
       return;
     }
   } catch {
     if (hasConsent()) {
-      router.replace("/");
+      router.replace("/home");
     }
   }
 }
@@ -160,13 +160,13 @@ function onConfirm() {
   // Web 暂未实现基线页，同意后回首页
   setTimeout(() => {
     submitting.value = false;
-    router.replace("/");
+    router.replace("/home");
   }, 1000);
 }
 
 function onBack() {
   if (window.history.length > 1) router.back();
-  else router.push("/");
+  else router.push("/home");
 }
 
 function initByMode() {

@@ -9,8 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.config import get_settings  # noqa: E402
-from app.database import Base, engine, iter_engines  # noqa: E402
-from app.models import *  # noqa: F401,F403,E402
+from app.client_types import CLIENT_TYPE_WEB, CLIENT_TYPE_APP  # noqa: E402
+from app.database import engine, get_base, iter_engines  # noqa: E402
+# 注册三端独立模型到各自 Base.metadata（无共用表）
+import app.models.app  # noqa: E402,F401
+import app.models.web  # noqa: E402,F401
+import app.models.wechat  # noqa: E402,F401
 
 # Migration helpers use _active_engine; main() switches per client DB.
 _active_engine = engine
@@ -220,6 +224,16 @@ def ensure_ms_to_datetime_columns() -> None:
 
 def ensure_users_logout_at_and_openid_index() -> None:
     with _active_engine.connect() as conn:
+        has_openid = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+                "AND COLUMN_NAME = 'openid'"
+            )
+        ).scalar()
+        if not has_openid:
+            return
+
         has_logout = conn.execute(
             text(
                 "SELECT COUNT(*) FROM information_schema.COLUMNS "
@@ -353,13 +367,65 @@ def ensure_drop_research_id_unique() -> None:
             print("Replaced baseline_profiles.uk_baseline_research_id with idx_baseline_research_id.")
 
 
+def ensure_web_admin_user(client_type: str) -> None:
+    """ema_web：默认管理员 admin / 123456 / role=0。"""
+    if client_type != CLIENT_TYPE_WEB:
+        return
+    from app.database import get_session_factory
+    from app.models.web import User
+
+    db = get_session_factory(client_type)()
+    try:
+        if db.query(User).filter(User.user_name == "admin").first():
+            return
+        db.add(
+            User(
+                user_name="admin",
+                psw="123456",
+                role=0,
+                study_status="active",
+                login_count=0,
+            )
+        )
+        db.commit()
+        print("Seeded default web admin user (user_name=admin, psw=123456, role=0).")
+    finally:
+        db.close()
+
+
+def ensure_app_admin_user(client_type: str) -> None:
+    """ema_app：默认管理员 admin / 123456 / role=0。"""
+    if client_type != CLIENT_TYPE_APP:
+        return
+    from app.database import get_session_factory
+    from app.models.app import User
+
+    db = get_session_factory(client_type)()
+    try:
+        if db.query(User).filter(User.user_name == "admin").first():
+            return
+        db.add(
+            User(
+                user_name="admin",
+                psw="123456",
+                role=0,
+                study_status="active",
+                login_count=0,
+            )
+        )
+        db.commit()
+        print("Seeded default app admin user (user_name=admin, psw=123456, role=0).")
+    finally:
+        db.close()
+
+
 def main() -> None:
     global _active_engine
     ensure_database()
     for client_type, eng in iter_engines():
         print(f"--- Initializing tables for client_type={client_type} ---")
         _active_engine = eng
-        Base.metadata.create_all(bind=eng)
+        get_base(client_type).metadata.create_all(bind=eng)
         ensure_session_key_column()
         ensure_logout_at_column()
         ensure_risk_session_columns()
@@ -369,6 +435,8 @@ def main() -> None:
         ensure_users_logout_at_and_openid_index()
         ensure_feature_session_columns()
         ensure_drop_research_id_unique()
+        ensure_web_admin_user(client_type)
+        # ensure_app_admin_user(client_type)
     print("Tables created successfully for all client databases.")
 
 

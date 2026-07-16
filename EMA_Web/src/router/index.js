@@ -1,17 +1,40 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import MainLayout from '../layouts/MainLayout.vue'
 import Home from '../views/Home.vue'
+import Records from '../views/Records.vue'
+import Trends from '../views/Trends.vue'
 import Chat from '../views/Chat.vue'
 import Resources from '../views/Resources.vue'
+import My from '../views/My.vue'
+import Users from '../views/Users.vue'
 import Consent from '../views/Consent.vue'
-import { ensureLogin, getToken } from '../api/auth'
+import Login from '../views/Login.vue'
+import { getToken, isAdmin } from '../api/auth'
 import { fetchConsentStatus } from '../api/consent'
 import { applyConsentFromServer, hasConsent } from '../utils/consentState'
 
 const routes = [
-  { path: '/', name: 'home', component: Home, meta: { requiresConsent: true } },
-  { path: '/chat', name: 'chat', component: Chat, meta: { requiresConsent: true } },
-  { path: '/resources', name: 'resources', component: Resources, meta: { requiresConsent: true } },
-  { path: '/consent', name: 'consent', component: Consent },
+  { path: '/login', name: 'login', component: Login, meta: { public: true } },
+  {
+    path: '/',
+    component: MainLayout,
+    redirect: '/home',
+    children: [
+      { path: 'home', name: 'home', component: Home, meta: { requiresAuth: true, requiresConsent: true, title: '首页' } },
+      { path: 'records', name: 'records', component: Records, meta: { requiresAuth: true, requiresConsent: true, title: '记录' } },
+      { path: 'trends', name: 'trends', component: Trends, meta: { requiresAuth: true, requiresConsent: true, title: '趋势' } },
+      { path: 'chat', name: 'chat', component: Chat, meta: { requiresAuth: true, requiresConsent: true, title: '对话' } },
+      { path: 'resources', name: 'resources', component: Resources, meta: { requiresAuth: true, requiresConsent: true, title: '资源' } },
+      {
+        path: 'users',
+        name: 'users',
+        component: Users,
+        meta: { requiresAuth: true, requiresAdmin: true, title: '管理' },
+      },
+      { path: 'my', name: 'my', component: My, meta: { requiresAuth: true, requiresConsent: true, title: '我的' } },
+    ],
+  },
+  { path: '/consent', name: 'consent', component: Consent, meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({
@@ -20,26 +43,38 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, _from, next) => {
-  // 知情同意页本身不强制拦截
-  if (to.name === 'consent') {
+  if (to.name === 'login') {
+    if (getToken()) {
+      next({ path: '/home', replace: true })
+      return
+    }
     next()
     return
   }
 
-  if (!to.meta.requiresConsent) {
+  const needsAuth = to.meta.requiresAuth || to.meta.requiresConsent || to.meta.requiresAdmin
+  if (needsAuth && !getToken()) {
+    next({ path: '/login', query: { redirect: to.fullPath }, replace: true })
+    return
+  }
+
+  if (to.meta.requiresAdmin && !isAdmin()) {
+    next({ path: '/home', replace: true })
+    return
+  }
+
+  if (!to.meta.requiresConsent || isAdmin()) {
     next()
     return
   }
 
   try {
-    if (!getToken()) await ensureLogin()
     const status = await fetchConsentStatus()
     if (status.has_consent) {
       applyConsentFromServer(status)
       next()
       return
     }
-    // 本地刚同意、服务端流水尚未落库时，避免被 status=false 清掉本地并打回授权页
     if (hasConsent()) {
       next()
       return

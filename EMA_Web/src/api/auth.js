@@ -1,12 +1,12 @@
+import axios from 'axios'
 import http from './http'
 
 const TOKEN_KEY = 'ema_chat_token'
 const OPENID_KEY = 'ema_chat_openid'
 const USER_ID_KEY = 'ema_chat_user_id'
+const USER_NAME_KEY = 'ema_chat_user_name'
+const ROLE_KEY = 'ema_chat_role'
 export const CLIENT_TYPE = 'web'
-
-/** 开发联调：与 EMA_WeChat OPEN_ID / MOCK_WX_LOGIN 对齐 */
-const DEV_CODE = import.meta.env.VITE_MOCK_LOGIN_CODE || '0f1ffwll2gtyPh40gYml2wB0wl2ffwlv'
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -16,44 +16,110 @@ export function getOpenId() {
   return localStorage.getItem(OPENID_KEY) || ''
 }
 
+export function getUserName() {
+  return localStorage.getItem(USER_NAME_KEY) || getOpenId()
+}
+
 export function getUserId() {
   return localStorage.getItem(USER_ID_KEY) || ''
+}
+
+export function getRole() {
+  const raw = localStorage.getItem(ROLE_KEY)
+  if (raw === null || raw === '') return null
+  const n = Number(raw)
+  return Number.isNaN(n) ? null : n
+}
+
+/** 管理员（role=0）可跳过知情同意 */
+export function isAdmin() {
+  return getRole() === 0
 }
 
 export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(OPENID_KEY)
   localStorage.removeItem(USER_ID_KEY)
+  localStorage.removeItem(USER_NAME_KEY)
+  localStorage.removeItem(ROLE_KEY)
 }
 
-export async function loginWithCode(code = DEV_CODE) {
-  // 绕过拦截器对未登录的依赖：直接用 axios 原始请求路径
-  const { default: axios } = await import('axios')
-  const base = import.meta.env.VITE_API_BASE || '/api/v1'
-  const res = await axios.post(
-    `${base}/auth/wx-login`,
-    { code, client_type: CLIENT_TYPE },
-    {
-      timeout: 15000,
-      headers: { 'X-Client-Type': CLIENT_TYPE },
-    },
-  )
-  const body = res.data || {}
-  const data = body.data || body
+function persistLogin(data) {
   if (!data?.token) {
-    throw new Error(body.message || '登录失败')
+    throw new Error('登录失败：未返回 token')
   }
   localStorage.setItem(TOKEN_KEY, data.token)
-  if (data.openid) localStorage.setItem(OPENID_KEY, data.openid)
+  const name = data.user_name || data.openid || ''
+  if (name) {
+    localStorage.setItem(OPENID_KEY, name)
+    localStorage.setItem(USER_NAME_KEY, name)
+  }
   if (data.user_id != null) localStorage.setItem(USER_ID_KEY, String(data.user_id))
+  if (data.role != null) localStorage.setItem(ROLE_KEY, String(data.role))
+  else localStorage.removeItem(ROLE_KEY)
   return data
 }
 
+/** Web 用户名密码登录 → POST /auth/login */
+export async function loginWithPassword(user_name, psw) {
+  const base = import.meta.env.VITE_API_BASE || '/api/v1'
+  try {
+    const res = await axios.post(
+      `${base}/auth/login`,
+      { user_name, psw, client_type: CLIENT_TYPE },
+      {
+        timeout: 15000,
+        headers: { 'X-Client-Type': CLIENT_TYPE },
+      },
+    )
+    const body = res.data || {}
+    if (typeof body.code === 'number' && body.code !== 0) {
+      throw new Error(body.message || '登录失败')
+    }
+    const data = body.data || body
+    return persistLogin(data)
+  } catch (err) {
+    if (err?.response) {
+      const detail = err.response.data?.detail
+      if (typeof detail === 'string') throw new Error(detail)
+      if (Array.isArray(detail)) {
+        const msg = detail.map((d) => d.msg || JSON.stringify(d)).join('；')
+        throw new Error(msg || '请求参数错误')
+      }
+      if (typeof err.response.data?.message === 'string') {
+        throw new Error(err.response.data.message)
+      }
+    }
+    throw err instanceof Error ? err : new Error(String(err))
+  }
+}
+
+/** 已登录则返回本地会话；未登录抛错（不再自动 mock 登录） */
 export async function ensureLogin() {
-  if (getToken()) return { token: getToken(), openid: getOpenId() }
-  return loginWithCode()
+  if (getToken()) {
+    return {
+      token: getToken(),
+      openid: getOpenId(),
+      user_name: getUserName(),
+      role: getRole(),
+    }
+  }
+  throw new Error('未登录')
 }
 
 export async function fetchProfile() {
   return http.get('/users/me')
+}
+
+/** 写入 user_login_logs.logout_at，再清除本地登录态 */
+export async function logout() {
+  try {
+    if (getToken()) {
+      await http.post('/auth/logout-log')
+    }
+  } catch (e) {
+    console.warn('记录登出失败', e)
+  } finally {
+    clearAuth()
+  }
 }

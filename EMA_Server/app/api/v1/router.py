@@ -31,6 +31,7 @@ from app.schemas import (
     EmaQuestionnaireSubmitRequest,
     EmaStepSubmitRequest,
     EmaSubmissionSubmitRequest,
+    PasswordLoginRequest,
     RiskSnapshotSaveRequest,
     SyncPushRequest,
     UserProfileResponse,
@@ -51,7 +52,7 @@ from app.services.analysis import (
     extract_video_features_for_video,
     extract_voice_features_for_voice,
 )
-from app.services.auth_service import record_user_login, record_user_logout, wx_login
+from app.services.auth_service import password_login, record_user_login, record_user_logout, wx_login
 from app.services.baseline_service import submit_baseline_log
 from app.services.behavior_service import record_behavior_event
 from app.services.chat_service import list_messages as list_chat_messages
@@ -96,6 +97,30 @@ async def auth_wx_login(body: WxLoginRequest):
     try:
         data = await wx_login(db, body.code, body.client_type)
         return ApiResponse(data=data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        db.close()
+
+
+@router.post(
+    "/auth/login",
+    response_model=ApiResponse,
+    summary="Web 用户名密码登录",
+    description=(
+        "校验 ema_web.users 的 user_name / psw，签发含 client_type=web 的 JWT。"
+        "默认管理员：admin / 123456（role=0）。"
+    ),
+)
+def auth_password_login(body: PasswordLoginRequest):
+    from app.client_types import set_current_client_type
+    from app.database import create_session
+
+    set_current_client_type(body.client_type)
+    db = create_session(body.client_type)
+    try:
+        data = password_login(db, body.user_name, body.psw, body.client_type)
+        return ApiResponse(data=data, message="登录成功")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
@@ -207,13 +232,18 @@ def checkin_session_complete(
     description="获取当前登录用户的基本资料、研究状态及是否已完成知情同意与基线测评。",
 )
 def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    from app.models import BaselineProfile
+    from app.models import models_for
 
+    m = models_for()
+    BaselineProfile = m.BaselineProfile
+    principal = getattr(user, "user_name", None) or getattr(user, "openid", "") or ""
     has_baseline = db.query(BaselineProfile).filter(BaselineProfile.user_id == user.id).count() > 0
     return ApiResponse(
         data=UserProfileResponse(
             user_id=user.id,
-            openid=user.openid,
+            openid=principal,
+            user_name=getattr(user, "user_name", None),
+            role=getattr(user, "role", None),
             research_id=user.research_id,
             login_count=user.login_count,
             study_status=user.study_status,

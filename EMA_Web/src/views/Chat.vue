@@ -1,30 +1,32 @@
 <template>
-  <div class="chat-layout">
-    <div ref="listEl" class="msg-list">
-      <div
-        v-for="m in messages"
-        :key="m.id + '-' + (m.created_at || '')"
-        class="bubble"
-        :class="m.role"
-      >
-        {{ m.content }}
+  <div class="page-chat">
+    <el-card shadow="never" class="chat-card" body-class="chat-body">
+      <div ref="listEl" class="msg-list">
+        <div
+          v-for="m in messages"
+          :key="m.id + '-' + (m.created_at || '')"
+          class="bubble"
+          :class="m.role"
+        >
+          {{ m.content }}
+        </div>
+        <el-alert v-if="loadError" type="error" :title="loadError" show-icon :closable="false" />
       </div>
-      <p v-if="loadError" class="error">{{ loadError }}</p>
-    </div>
 
-    <div class="composer">
-      <input
-        v-model="draft"
-        type="text"
-        placeholder="描述困扰，或问：风险评估 / 资源"
-        :disabled="sending"
-        @keyup.enter="onSend"
-      />
-      <button class="btn" :disabled="sending || !draft.trim()" @click="onSend">
-        {{ sending ? '发送中' : '发送' }}
-      </button>
-    </div>
-    <div class="chat-footer">{{ disclaimer }}</div>
+      <div class="composer">
+        <el-input
+          v-model="draft"
+          placeholder="描述困扰，或问：风险评估 / 资源"
+          :disabled="sending"
+          clearable
+          @keyup.enter="onSend"
+        />
+        <el-button type="primary" :loading="sending" :disabled="!draft.trim()" @click="onSend">
+          发送
+        </el-button>
+      </div>
+      <div v-if="disclaimer" class="chat-footer">{{ disclaimer }}</div>
+    </el-card>
   </div>
 </template>
 
@@ -81,3 +83,65 @@ async function onSend() {
 
 onMounted(loadMessages)
 </script>
+
+<style scoped>
+.chat-card {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.chat-card :deep(.chat-body) {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+  min-height: 420px;
+  padding: 0;
+}
+
+.msg-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: #e8efec;
+}
+
+.bubble {
+  max-width: min(78%, 560px);
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 15px;
+}
+
+.bubble.user {
+  margin-left: auto;
+  background: #0f6e5c;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble.assistant,
+.bubble.system {
+  margin-right: auto;
+  background: #fff;
+  border-bottom-left-radius: 4px;
+}
+
+.composer {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  border-top: 1px solid #e4e7ed;
+}
+
+.chat-footer {
+  font-size: 11px;
+  color: #8a94a0;
+  padding: 0 12px 12px;
+  background: #fff;
+}
+</style>

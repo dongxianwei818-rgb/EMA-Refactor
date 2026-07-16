@@ -1,91 +1,90 @@
 <template>
-  <div>
-    <section class="card">
-      <h1 class="hero-title">EMA Chat</h1>
-      <p class="hint">非诊断支持对话 · 查看反馈与校园资源（由原微信小程序能力重构为 Vue3 Web）</p>
-    </section>
+  <div class="page-home">
+    <el-card shadow="never" class="page-card hero-card">
+      <h1 class="hero-title">EMA</h1>
+      <p class="hint">非诊断支持 · 生态瞬时评估与心理健康资源</p>
+    </el-card>
 
-    <section class="card">
-      <h3 style="margin:0 0 12px">今日反馈摘要</h3>
-      <p v-if="loading" class="muted">加载中…</p>
+    <el-card shadow="never" class="page-card">
+      <template #header>
+        <span>今日反馈摘要</span>
+      </template>
+      <el-skeleton v-if="loading" :rows="3" animated />
       <template v-else>
-        <div class="level" :class="feedback.level || 'unknown'">
+        <el-tag :type="levelTagType" effect="dark" class="level-tag">
           关注等级：{{ feedback.level || 'unknown' }}
-        </div>
-        <p style="line-height:1.65;margin:0">{{ feedback.message || '暂无反馈' }}</p>
+        </el-tag>
+        <p class="feedback-msg">{{ feedback.message || '暂无反馈' }}</p>
         <p class="disclaimer">{{ feedback.disclaimer }}</p>
       </template>
-      <p v-if="error" class="error">{{ error }}</p>
+      <el-alert v-if="error" type="error" :title="error" show-icon class="page-alert" />
       <div class="btn-row">
-        <button class="btn" @click="$router.push('/chat')">进入对话</button>
-        <button class="btn secondary" :disabled="loggingIn" @click="relogin">
-          {{ loggingIn ? '登录中…' : '重新登录' }}
-        </button>
+        <el-button type="primary" @click="$router.push('/chat')">进入对话</el-button>
+        <el-button @click="$router.push('/trends')">查看趋势</el-button>
       </div>
-      <p class="muted" style="margin-top:12px;font-size:13px">
-        openid：{{ openid || '未登录' }}
-        <span v-if="userId"> · user_id：{{ userId }}</span>
-      </p>
-    </section>
+    </el-card>
 
-    <section class="card" v-if="riskLabel">
-      <h3 style="margin:0 0 8px">风险评估（只读）</h3>
-      <div class="level" :class="riskLevel">{{ riskLabel }}</div>
-      <p class="muted" style="margin:0">{{ riskSummary }}</p>
-    </section>
+    <el-card v-if="riskLabel" shadow="never" class="page-card">
+      <template #header>
+        <span>风险评估（只读）</span>
+      </template>
+      <el-tag :type="riskTagType" effect="plain">{{ riskLabel }}</el-tag>
+      <p class="muted">{{ riskSummary }}</p>
+    </el-card>
 
-    <!-- 对齐小程序「我的」：查看知情同意 / 撤回授权 -->
-    <section class="card">
-      <h3 style="margin:0 0 12px">知情同意</h3>
-      <div class="btn-row">
-        <button
-          class="btn secondary"
-          @click="$router.push({ path: '/consent', query: { mode: 'view' } })"
-        >
-          查看知情同意
-        </button>
-        <button
-          v-if="consented"
-          class="btn revoke"
-          :disabled="revoking"
-          @click="onRevokeConsent"
-        >
-          {{ revoking ? '处理中…' : '撤回授权' }}
-        </button>
-      </div>
-    </section>
+    <el-row :gutter="12" class="quick-nav">
+      <el-col :span="8" v-for="item in shortcuts" :key="item.path">
+        <el-card shadow="hover" class="shortcut-card" @click="$router.push(item.path)">
+          <el-icon :size="22" color="#0f6e5c">
+            <component :is="item.icon" />
+          </el-icon>
+          <div class="shortcut-label">{{ item.label }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { clearAuth, ensureLogin, getOpenId, getUserId, loginWithCode } from '../api/auth'
+import { computed, onMounted, ref } from 'vue'
+import { ChatDotRound, Collection, Document } from '@element-plus/icons-vue'
+import { ensureLogin } from '../api/auth'
 import { fetchFeedback, fetchRiskAssessment } from '../api/chat'
-import { recordRevokeLog } from '../api/consent'
-import { applyConsentFromServer, hasConsent } from '../utils/consentState'
 
-const router = useRouter()
 const feedback = ref({})
 const loading = ref(true)
-const loggingIn = ref(false)
-const revoking = ref(false)
 const error = ref('')
-const openid = ref('')
-const userId = ref('')
 const riskLevel = ref('')
 const riskLabel = ref('')
 const riskSummary = ref('')
-const consented = ref(false)
+
+const shortcuts = [
+  { path: '/records', label: '记录', icon: Document },
+  { path: '/chat', label: '对话', icon: ChatDotRound },
+  { path: '/resources', label: '资源', icon: Collection },
+]
+
+const levelTagType = computed(() => {
+  const level = String(feedback.value.level || '').toLowerCase()
+  if (level === 'high') return 'danger'
+  if (level === 'medium') return 'warning'
+  if (level === 'low') return 'success'
+  return 'info'
+})
+
+const riskTagType = computed(() => {
+  const level = String(riskLevel.value).toLowerCase()
+  if (level === 'high') return 'danger'
+  if (level === 'medium') return 'warning'
+  if (level === 'low') return 'success'
+  return 'info'
+})
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
     await ensureLogin()
-    openid.value = getOpenId()
-    userId.value = getUserId()
-    consented.value = hasConsent()
     feedback.value = (await fetchFeedback()) || {}
     try {
       const risk = await fetchRiskAssessment()
@@ -102,44 +101,69 @@ async function load() {
   }
 }
 
-async function relogin() {
-  loggingIn.value = true
-  error.value = ''
-  try {
-    clearAuth()
-    await loginWithCode()
-    await load()
-  } catch (e) {
-    error.value = e.message || String(e)
-  } finally {
-    loggingIn.value = false
-  }
-}
-
-async function onRevokeConsent() {
-  if (!consented.value || revoking.value) return
-  const ok = window.confirm(
-    '确认撤回知情同意与隐私授权？撤回后将停止新的数据采集，再次使用需重新同意。',
-  )
-  if (!ok) return
-  const at = Date.now()
-  revoking.value = true
-  try {
-    const data = await recordRevokeLog({ source: 'my', page: 'my' }, at)
-    applyConsentFromServer({
-      has_consent: false,
-      status: 'revoke',
-      at: data.at || at,
-    })
-  } catch (e) {
-    console.warn('记录撤回授权失败', e)
-    applyConsentFromServer({ has_consent: false, status: 'revoke', at })
-  } finally {
-    consented.value = false
-    revoking.value = false
-    router.replace('/consent')
-  }
-}
-
 onMounted(load)
 </script>
+
+<style scoped>
+.page-card {
+  margin-bottom: 16px;
+  border-radius: 16px;
+}
+
+.hero-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  color: #0f6e5c;
+}
+
+.hint,
+.muted {
+  color: #909399;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.level-tag {
+  margin-bottom: 10px;
+}
+
+.feedback-msg {
+  line-height: 1.65;
+  margin: 0;
+}
+
+.disclaimer {
+  font-size: 12px;
+  color: #8a94a0;
+  line-height: 1.5;
+  margin-top: 12px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.page-alert {
+  margin-top: 12px;
+}
+
+.quick-nav {
+  margin-top: 4px;
+}
+
+.shortcut-card {
+  text-align: center;
+  cursor: pointer;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.shortcut-label {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #303133;
+}
+</style>

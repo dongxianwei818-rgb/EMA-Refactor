@@ -16,7 +16,7 @@ OPENAPI_TAGS = [
     },
     {
         "name": "Web 管理",
-        "description": "Web 管理端预留接口：反馈录入、健康检查等。",
+        "description": "Web 管理端接口：用户管理、反馈录入、健康检查等。",
     },
     {
         "name": "系统",

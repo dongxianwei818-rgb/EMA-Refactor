@@ -1,10 +1,16 @@
-"""Database session and base model (multi-DB by client type)."""
+"""Database session and base models (multi-DB by client type)."""
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from app.client_types import CLIENT_TYPE_WECHAT, VALID_CLIENT_TYPES, validate_client_type
+from app.client_types import (
+    CLIENT_TYPE_APP,
+    CLIENT_TYPE_WEB,
+    CLIENT_TYPE_WECHAT,
+    VALID_CLIENT_TYPES,
+    validate_client_type,
+)
 from app.config import get_settings
 
 settings = get_settings()
@@ -29,8 +35,30 @@ engine = _engines[CLIENT_TYPE_WECHAT]
 SessionLocal = _session_factories[CLIENT_TYPE_WECHAT]
 
 
-class Base(DeclarativeBase):
-    pass
+class WechatBase(DeclarativeBase):
+    """wechat → ema：小程序表结构。"""
+
+
+class WebBase(DeclarativeBase):
+    """web → ema_web：Web 端表结构。"""
+
+
+class AppBase(DeclarativeBase):
+    """app → ema_app：App 端表结构。"""
+
+
+BASES: dict[str, type[DeclarativeBase]] = {
+    CLIENT_TYPE_WECHAT: WechatBase,
+    CLIENT_TYPE_WEB: WebBase,
+    CLIENT_TYPE_APP: AppBase,
+}
+
+# 兼容旧代码中的 Base 引用（等同 wechat）
+Base = WechatBase
+
+
+def get_base(client_type: str) -> type[DeclarativeBase]:
+    return BASES[validate_client_type(client_type)]
 
 
 def get_engine(client_type: str) -> Engine:

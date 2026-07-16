@@ -4,7 +4,7 @@
 
 为微信小程序 `EMA_WeChat`、Web 端 `EMA_Web`、App 端 `EMA_APP` 提供：用户身份与参与生命周期、EMA 多模态数据采集与持久化、本地缓存同步、多模态特性分析、风险评估与非诊断反馈；并预留 Web 管理端扩展能力。
 
-按客户端类型分库：`wechat` → `ema`，`web` → `ema_web`，`app` → `ema_app`（登录写入 JWT 的 `client_type`，后续请求按 token 选库）。
+按客户端类型分库且**模型包独立、无共用表**：`wechat` → `ema`，`web` → `ema_web`，`app` → `ema_app`（登录写入 JWT 的 `client_type`，后续请求按 token 选库；建表按各端自己的 `Base.metadata`）。
 
 ---
 
@@ -16,9 +16,19 @@ EMA_Server/
 │   ├── main.py                      # FastAPI 入口，挂载 /api/v1 与 /api/web/v1
 │   ├── config.py                    # 环境变量与特性分析参数（含分库库名）
 │   ├── client_types.py              # client_type 常量与校验（wechat/web/app）
-│   ├── database.py                  # 按 client_type 多 Engine / Session
+│   ├── database.py                  # 多 Engine / Session；WechatBase / WebBase / AppBase
 │   ├── dependencies.py              # JWT（含 client_type）、get_db、get_current_user
-│   ├── models/__init__.py           # SQLAlchemy ORM（users、ema_*、*_features 等）
+│   ├── models/                      # 按 client 拆分的独立 ORM（无共用表）
+│   │   ├── __init__.py              # models_for(client_type)；兼容导出 wechat 模型
+│   │   ├── wechat/
+│   │   │   ├── __init__.py          # 导出 wechat 模型类
+│   │   │   └── tables.py            # wechat → ema（挂 WechatBase）
+│   │   ├── web/
+│   │   │   ├── __init__.py
+│   │   │   └── tables.py            # web → ema_web（挂 WebBase）
+│   │   └── app/
+│   │       ├── __init__.py
+│   │       └── tables.py            # app → ema_app（挂 AppBase）
 │   ├── schemas/__init__.py          # Pydantic 请求/响应（ApiResponse 统一外壳）
 │   ├── api/
 │   │   ├── v1/router.py             # 小程序 / Web / App 共用业务 API（见下文）
@@ -55,8 +65,8 @@ EMA_Server/
 │           └── __init__.py          # 统一导出与 enqueue_* 占位
 ├── sql/
 │   ├── 01_create_database.sql
-│   └── 02_create_tables.sql         # 与 ORM 对齐的建表脚本
-├── scripts/init_db.py               # 建库 + create_all + 增量迁移辅助
+│   └── 02_create_tables.sql         # 建表参考脚本（默认 USE ema；与 wechat ORM 对齐）
+├── scripts/init_db.py               # 建库 + 按 client 对各自 Base.metadata.create_all
 ├── files/                           # 运行时媒体目录（voice/、video/）
 ├── requirements.txt
 ├── .env / .env.example
@@ -69,7 +79,7 @@ EMA_Server/
 | ----------------- | ---------------------------------------------------- |
 | `api/*/router.py` | HTTP 路由、鉴权依赖、ApiResponse 包装                |
 | `services/*`      | 业务逻辑、跨表编排                                   |
-| `models/`         | 数据库表映射                                         |
+| `models/<client>/` | 按 client 独立 ORM，无共用表；用 `models_for()` 取模型 |
 | `schemas/`        | 入参校验与 OpenAPI 文档                              |
 | `analysis/*`      | 从原始 EMA 数据提取 `*_features`，可引用其他表上下文 |
 
@@ -189,7 +199,7 @@ brew install pkgconf ffmpeg
 ### 5. 安装数据库和建表
 
 - 初始化 MySQL
-  > 使用 root 账户执行建库脚本，创建 **`ema` / `ema_web` / `ema_app`** 三个库与用户 `dxw`（三库表结构相同，按客户端隔离数据）
+  > 使用 root 账户执行建库脚本，创建 **`ema` / `ema_web` / `ema_app`** 三个库与用户 `dxw`。三端数据隔离；表结构由各自 `models/<client>/tables.py` 决定（可不同）。
 
 ```bash
 # Windows
@@ -201,12 +211,12 @@ cp .env.example .env
 .venv/bin/python scripts/init_db.py
 ```
 
-`init_db.py` 会一次性建齐三库并 `create_all`。或者：
+`init_db.py` 会一次性建齐三库，并对每个 `client_type` 调用对应 `Base.metadata.create_all`（`WechatBase` → `ema`，`WebBase` → `ema_web`，`AppBase` → `ema_app`）。或者：
 
 ```bash
 mysql -u root -p < sql/01_create_database.sql
 python scripts/init_db.py
-# 或对每个库分别执行 02（默认脚本内 USE ema，web/app 需改库名后执行）：
+# 手工 SQL：02 默认 USE ema（对齐 wechat ORM）；web/app 需改库名或按各自 tables.py 维护脚本：
 # mysql -u dxw -p ema < sql/02_create_tables.sql
 # mysql -u dxw -p ema_web < sql/02_create_tables.sql
 # mysql -u dxw -p ema_app < sql/02_create_tables.sql
@@ -306,18 +316,28 @@ API_BASE_URL: "http://127.0.0.1:8000/api/v1";
 
 #### 客户端类型与分库
 
-登录及后续业务按 `client_type` 连接不同 MySQL 库，数据互不混用：
+登录及后续业务按 `client_type` 连接不同 MySQL 库，数据互不混用；ORM 亦按端拆分，**无共用表 / 无跨端 Base**：
 
-| `client_type` | 客户端     | 数据库    |
-| ------------- | ---------- | --------- |
-| `wechat`      | EMA_WeChat | `ema`     |
-| `web`         | EMA_Web    | `ema_web` |
-| `app`         | EMA_APP    | `ema_app` |
+| `client_type` | 客户端     | 数据库    | ORM 包 / Base              |
+| ------------- | ---------- | --------- | -------------------------- |
+| `wechat`      | EMA_WeChat | `ema`     | `models/wechat` + `WechatBase` |
+| `web`         | EMA_Web    | `ema_web` | `models/web` + `WebBase`   |
+| `app`         | EMA_APP    | `ema_app` | `models/app` + `AppBase`   |
 
-1. **登录**：`POST /auth/wx-login` 请求体必传 `client_type`（及 `code`）；服务端连对应库签发 JWT，payload 含 `sub`（openid）、`uid`、`client_type`。
+1. **登录**：`POST /auth/wx-login` 请求体必传 `client_type`（及 `code`）；服务端连对应库签发 JWT，payload 含 `sub`（openid）、`uid`、`client_type`；登录与 `get_current_user` 通过 `models_for(client_type)` 取该端 `User` 等模型。
 2. **后续请求**：`get_db` 优先读 JWT 中的 `client_type` 选库；可选请求头 `X-Client-Type`（若同时携带须与 token 一致）。无 token 且无请求头时默认 `wechat`。
 3. **客户端约定**：小程序登录传 `wechat`；EMA_Web 登录与 HTTP 拦截器传 `web`；App 传 `app`。
-4. **注意**：旧 token 若无 `client_type` 会落到默认库 `ema`；换端或升级后请重新登录。
+4. **改表结构**：只改对应端的 `app/models/<client>/tables.py`，再跑 `python scripts/init_db.py`（或对该库做迁移）。不要从其他端包 `import` 模型。
+5. **取模型**：业务代码在已知 `client_type` 时用 `models_for`；`from app.models import User` 仍兼容导出 **wechat** 模型，表结构分叉后跨端逻辑应改为 `models_for(...)`：
+
+```python
+from app.models import models_for
+
+m = models_for("web")          # 或 models_for()，读当前请求 ContextVar
+user = db.query(m.User).filter(m.User.id == uid).first()
+```
+
+6. **注意**：旧 token 若无 `client_type` 会落到默认库 `ema`；换端或升级后请重新登录。
 
 ---
 
@@ -566,11 +586,15 @@ BEHAVIOR_ON_TIME_MINUTES=60
          ┌─────────────────────────────────────┐
          │         EMA_Server (FastAPI)         │
          │  /api/v1  按 JWT.client_type 选库    │
+         │  models_for() → 对应端独立 ORM       │
          └──────┬──────────┬──────────┬────────┘
                 ▼          ▼          ▼
              MySQL      MySQL      MySQL
               ema      ema_web    ema_app
+           WechatBase   WebBase   AppBase
 ```
+
+**数据归属原则**：以 JWT 中 `uid`（`users.id`）为准写入**当前 `client_type` 对应库**；openid 仅用于登录识别。特性分析结果在 `*_features` 表，按 `task_date` + `session_id` 与原始 EMA 行对齐。不同客户端库之间用户与业务数据隔离；表定义彼此独立，可按端演进。
 
 ### 小程序模块 ↔ 服务端对照
 
@@ -594,13 +618,13 @@ BEHAVIOR_ON_TIME_MINUTES=60
 | `daily_tasks_api.js`         | `daily_task_service`                  | 任务状态        |
 | `constants.js`               | `config.api_prefix`                   | API 根地址      |
 
-**数据归属原则**：以 JWT 中 `uid`（`users.id`）为准写入**当前 `client_type` 对应库**；openid 仅用于登录识别。特性分析结果在 `*_features` 表，按 `task_date` + `session_id` 与原始 EMA 行对齐。不同客户端库之间用户与业务数据隔离。
-
 ---
 
 ## 开发说明
 
-- ORM 与 `sql/02_create_tables.sql` 需保持一致；改模型后执行 `python scripts/init_db.py`（会同步三库）或手工迁移。
+- **按端改模型**：修改 `app/models/wechat|web|app/tables.py` 之一；三端无共用表，禁止跨包引用。`init_db.py` 按 `get_base(client_type).metadata.create_all` 分别建表。
+- **SQL 脚本**：`sql/02_create_tables.sql` 默认对齐 **wechat / ema**；web、app 表结构若已分叉，以对应 `tables.py` 为准，或单独维护 SQL。
+- **取模型**：优先 `models_for(client_type)`；`from app.models import X` 仅为 wechat 兼容导出。
 - 媒体文件存于 `files/voice/`、`files/video/`，生产环境建议对象存储 + HTTPS。
 - 生产环境关闭 `MOCK_WX_LOGIN`，配置真实微信凭证。
 - 登录必须传 `client_type`；换端或升级后若 token 无该字段，请重新登录以免落到默认库 `ema`。
