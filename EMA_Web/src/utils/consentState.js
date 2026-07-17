@@ -1,23 +1,18 @@
 /**
- * 本地知情同意状态（对齐 EMA_WeChat/utils/ema.js 的 ema_consent / server profile）
+ * 入组/知情同意状态：保存在内存会话仓，登录后由 /users/me、sync/pull 填充。
  */
-const CONSENT_KEY = 'ema_consent'
-const SERVER_PROFILE_KEY = 'ema_server_profile'
+import { getStore } from './sessionStore'
 
 export function getLocalConsent() {
-  try {
-    return JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null')
-  } catch {
-    return null
-  }
+  return getStore().consent
 }
 
 export function acceptConsentLocal(at = Date.now()) {
-  localStorage.setItem(CONSENT_KEY, JSON.stringify({ at }))
+  getStore().consent = { at }
 }
 
 export function clearConsentLocal() {
-  localStorage.removeItem(CONSENT_KEY)
+  getStore().consent = null
 }
 
 export function applyConsentFromServer(consentData) {
@@ -41,13 +36,9 @@ export function hasConsent() {
 }
 
 export function getServerProfile() {
-  try {
-    return JSON.parse(localStorage.getItem(SERVER_PROFILE_KEY) || '{}')
-  } catch {
-    return {}
-  }
+  return getStore().serverProfile || {}
 }
 
 export function setServerProfile(profile) {
-  localStorage.setItem(SERVER_PROFILE_KEY, JSON.stringify(profile || {}))
+  getStore().serverProfile = { ...(profile || {}) }
 }

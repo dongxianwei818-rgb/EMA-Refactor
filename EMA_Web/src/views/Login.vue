@@ -59,7 +59,8 @@ import { useRoute, useRouter } from "vue-router";
 import { Lock, User } from "@element-plus/icons-vue";
 import { fetchProfile, isAdmin, loginWithPassword } from "../api/auth";
 import { applyConsentFromServer, hasConsent, setServerProfile } from "../utils/consentState";
-import { ensureBaselineProfile, isResearchBound } from "../utils/ema";
+import { isResearchBound } from "../utils/ema";
+import { hydrateFromServer } from "../utils/hydrate";
 import { markOnboardingSynced } from "../utils/onboardingGate";
 
 const router = useRouter();
@@ -102,8 +103,11 @@ async function resolvePostLoginPath() {
       markOnboardingSynced();
       if (!profile.has_consent && !hasConsent()) return "/consent";
       if (!profile.has_baseline && !isResearchBound()) return "/baseline";
-      if (profile.has_baseline || profile.research_id) {
-        await ensureBaselineProfile({ force: true })
+      // 登录后全量拉取服务端业务数据，保证换设备数据一致
+      try {
+        await hydrateFromServer({ force: true });
+      } catch (e) {
+        console.warn("登录后同步用户数据失败", e);
       }
       return "/home";
     }

@@ -192,6 +192,15 @@ def pull_user_data(db: Session, user) -> dict:
     m = models_for(user=user, db=db)
     BaselineProfile = m.BaselineProfile
     Submission = m.Submission
+    DailyTaskSnapshot = m.DailyTaskSnapshot
+    StepsRecord = m.StepsRecord
+    SkipEvent = m.SkipEvent
+    CheckinDayState = m.CheckinDayState
+    CheckinSession = m.CheckinSession
+    VideoDoneEvent = m.VideoDoneEvent
+    BehaviorMeta = m.BehaviorMeta
+    BehaviorLog = m.BehaviorLog
+
     baseline = db.query(BaselineProfile).filter(BaselineProfile.user_id == user.id).first()
     consent = latest_accept_consent(db, user.id, user=user)
     submissions = (
@@ -201,6 +210,145 @@ def pull_user_data(db: Session, user) -> dict:
         .limit(300)
         .all()
     )
+
+    # 每日任务：每个日期取最大 session_id 的快照（对应当前会话进度）
+    snapshots = (
+        db.query(DailyTaskSnapshot)
+        .filter(DailyTaskSnapshot.user_id == user.id)
+        .order_by(DailyTaskSnapshot.task_date.desc(), DailyTaskSnapshot.session_id.desc())
+        .limit(90)
+        .all()
+    )
+    daily_tasks: dict[str, dict] = {}
+    for row in snapshots:
+        if row.task_date not in daily_tasks:
+            daily_tasks[row.task_date] = _normalize_tasks_for_pull(row.tasks)
+
+    steps_rows = (
+        db.query(StepsRecord)
+        .filter(StepsRecord.user_id == user.id)
+        .order_by(StepsRecord.task_date.desc())
+        .limit(90)
+        .all()
+    )
+    steps_history = [
+        {
+            "date": r.task_date,
+            "steps": r.steps,
+            "at": datetime_to_ms(r.client_at),
+        }
+        for r in steps_rows
+    ]
+    steps_baseline = None
+    if len(steps_history) >= 3:
+        sample = steps_history[: min(7, len(steps_history))]
+        steps_baseline = round(sum(x["steps"] for x in sample) / len(sample))
+
+    skips = (
+        db.query(SkipEvent)
+        .filter(SkipEvent.user_id == user.id)
+        .order_by(SkipEvent.client_at.desc())
+        .limit(500)
+        .all()
+    )
+    video_skips = []
+    voice_skips = []
+    for s in skips:
+        item = {
+            "at": datetime_to_ms(s.client_at),
+            "date": s.task_date,
+            "sessionId": s.session_id,
+            "reason": s.reason or "skip",
+        }
+        if s.media_type == "video":
+            video_skips.append(item)
+        elif s.media_type == "voice":
+            voice_skips.append(item)
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    checkin_day = None
+    day_state = (
+        db.query(CheckinDayState)
+        .filter(CheckinDayState.user_id == user.id, CheckinDayState.task_date == today)
+        .first()
+    )
+    sessions = (
+        db.query(CheckinSession)
+        .filter(CheckinSession.user_id == user.id, CheckinSession.task_date == today)
+        .order_by(CheckinSession.session_id.asc())
+        .all()
+    )
+    session_list = [
+        {
+            "id": s.session_id,
+            "startedAt": datetime_to_ms(s.started_at),
+            "completedAt": datetime_to_ms(s.completed_at) if s.completed_at else None,
+        }
+        for s in sessions
+    ]
+    if day_state and isinstance(day_state.state_data, dict):
+        checkin_day = dict(day_state.state_data)
+        checkin_day["date"] = today
+        # 以 checkin_sessions 表为准补齐会话列表与当前 sessionId
+        if session_list:
+            by_id = {s["id"]: s for s in session_list}
+            for s in checkin_day.get("sessions") or []:
+                sid = s.get("id")
+                if sid is None:
+                    continue
+                if sid not in by_id:
+                    by_id[sid] = {
+                        "id": sid,
+                        "startedAt": s.get("startedAt"),
+                        "completedAt": s.get("completedAt"),
+                    }
+            session_list = sorted(by_id.values(), key=lambda x: x["id"])
+            checkin_day["sessions"] = session_list
+            checkin_day["sessionId"] = max(
+                int(day_state.session_id or 1),
+                max((s["id"] for s in session_list), default=1),
+            )
+        else:
+            checkin_day.setdefault("sessionId", day_state.session_id or 1)
+            checkin_day.setdefault("sessions", [])
+    elif session_list:
+        checkin_day = {
+            "date": today,
+            "sessionId": session_list[-1]["id"],
+            "sessions": session_list,
+        }
+
+    video_done = (
+        db.query(VideoDoneEvent)
+        .filter(VideoDoneEvent.user_id == user.id)
+        .order_by(VideoDoneEvent.client_at.desc())
+        .limit(100)
+        .all()
+    )
+    video_dates = [datetime_to_ms(v.client_at) for v in video_done if v.client_at]
+
+    meta_row = db.query(BehaviorMeta).filter(BehaviorMeta.user_id == user.id).first()
+    behavior_meta = meta_row.meta_data if meta_row and isinstance(meta_row.meta_data, dict) else {}
+
+    logs = (
+        db.query(BehaviorLog)
+        .filter(BehaviorLog.user_id == user.id)
+        .order_by(BehaviorLog.client_at.desc())
+        .limit(300)
+        .all()
+    )
+    behavior_logs = [
+        {
+            "module": log.module,
+            "action": log.action,
+            "extra": log.extra or {},
+            "route": log.route or "",
+            "hour": log.hour,
+            "at": datetime_to_ms(log.client_at),
+        }
+        for log in logs
+    ]
+
     return {
         "openid": user_principal(user),
         "research_id": user.research_id,
@@ -218,4 +366,32 @@ def pull_user_data(db: Session, user) -> dict:
             }
             for s in submissions
         ],
+        "daily_tasks": daily_tasks,
+        "checkin_day": checkin_day,
+        "steps_history": steps_history,
+        "steps_baseline": steps_baseline,
+        "video_skips": video_skips,
+        "voice_skips": voice_skips,
+        "video_dates": video_dates,
+        "behavior_meta": behavior_meta,
+        "behavior_logs": behavior_logs,
     }
+
+
+def _normalize_tasks_for_pull(tasks: dict | None) -> dict:
+    defaults = {
+        "questionnaire": False,
+        "diary": False,
+        "voice": False,
+        "video": False,
+        "steps": False,
+        "videoSkipped": False,
+        "voiceSkipped": False,
+    }
+    if not tasks or not isinstance(tasks, dict):
+        return dict(defaults)
+    merged = dict(defaults)
+    for key in defaults:
+        if key in tasks:
+            merged[key] = bool(tasks[key])
+    return merged

@@ -2,6 +2,11 @@ import axios from 'axios'
 import http from './http'
 import { trackEvent, flushPendingBehavior } from '../utils/tracker'
 import { invalidateOnboardingGate } from '../utils/onboardingGate'
+import {
+  clearLegacyBusinessStorage,
+  invalidateHydrateCache,
+  resetStore,
+} from '../utils/sessionStore'
 
 const TOKEN_KEY = 'ema_chat_token'
 const OPENID_KEY = 'ema_chat_openid'
@@ -44,6 +49,9 @@ export function clearAuth() {
   localStorage.removeItem(USER_ID_KEY)
   localStorage.removeItem(USER_NAME_KEY)
   localStorage.removeItem(ROLE_KEY)
+  clearLegacyBusinessStorage()
+  resetStore()
+  invalidateHydrateCache()
   invalidateOnboardingGate()
 }
 
@@ -81,6 +89,9 @@ export async function loginWithPassword(user_name, psw) {
     }
     const data = body.data || body
     persistLogin(data)
+    clearLegacyBusinessStorage()
+    resetStore()
+    invalidateHydrateCache()
     invalidateOnboardingGate()
     trackEvent('auth', 'login', { user_name: data.user_name || user_name }, '/login')
     flushPendingBehavior()

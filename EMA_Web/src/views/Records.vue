@@ -10,62 +10,98 @@
     />
 
     <template v-else>
-      <div v-if="sessions.length" class="records-summary">
-        <div class="records-summary-count">{{ sessions.length }}</div>
-        <div class="records-summary-label">次打卡记录</div>
-        <div class="records-summary-sub">共 {{ totalCount }} 条采集项</div>
-      </div>
-
-      <div v-else class="records-empty">
+      <div v-if="!sessions.length" class="records-empty">
         <p class="records-empty-title">暂无采集记录</p>
         <p class="records-empty-hint">
           完成 EMA 打卡后，问卷、日记、语音等采集项将在此按会话展示。
         </p>
       </div>
-
-      <article
-        v-for="session in sessions"
-        :key="session.key"
-        class="session-group"
-        :class="{ 'is-expanded': expandedKey === session.key }"
-      >
-        <header class="session-header" @click="toggleSession(session.key)">
-          <div class="session-header-left">
-            <span class="session-badge">第 {{ session.sessionId }} 次打卡</span>
-            <h2 class="session-date">{{ session.dateLabel }}</h2>
-          </div>
-          <div class="session-header-right">
-            <div class="session-count">{{ session.itemCount }} 项</div>
-            <div class="session-time">{{ session.timeRange }}</div>
-            <span class="session-chevron" aria-hidden="true">{{
-              expandedKey === session.key ? "▴" : "▾"
-            }}</span>
-          </div>
-        </header>
-
-        <div v-show="expandedKey === session.key" class="session-body">
-          <div
-            v-for="record in session.items"
-            :key="record.id"
-            class="record-item"
-          >
-            <span class="record-item-type" :class="`type-${record.type}`">
-              {{ record.typeLabel }}
-            </span>
-            <div class="record-item-main">
-              <p class="record-item-summary">{{ record.summary }}</p>
-              <p class="record-item-time">{{ record.timeLabel }}</p>
+      <template v-else>
+        <div class="session-grid">
+          <div class="records-summary">
+            <div class="records-summary-count">
+              <span class="records-summary-label">共</span>
+              <span class="records-summary-count-number">{{
+                sessions.length
+              }}</span>
+              <span class="records-summary-label"> 次打卡记录</span>
+            </div>
+            <div class="records-summary-sub">
+              共
+              <span class="records-summary-sub-number">{{ totalCount }}</span>
+              条采集项
             </div>
           </div>
+          <article
+            v-for="session in sessions"
+            :key="session.key"
+            class="session-group"
+            :class="{ 'is-expanded': expandedKey === session.key }"
+          >
+            <header class="session-header" @click="toggleSession(session.key)">
+              <div class="session-header-left">
+                <span class="session-badge"
+                  >第 {{ session.sessionId }} 次打卡</span
+                >
+                <h2 class="session-date">{{ session.dateLabel }}</h2>
+                <h2
+                  style="
+                    cursor: pointer;
+                    color: #79bbff;
+                    font-size: 14px;
+                    font-weight: 500;
+                  "
+                  @click="toggleSession(session.key)"
+                >
+                  点击查看详情
+                </h2>
+              </div>
+              <div class="session-header-right">
+                <div class="session-count">{{ session.itemCount }} 项</div>
+                <div class="session-time">{{ session.timeRange }}</div>
+                <span class="session-chevron" aria-hidden="true">
+                  <el-icon>
+                    <ArrowUp v-if="expandedKey === session.key" />
+                    <ArrowDown v-else />
+                  </el-icon>
+                </span>
+              </div>
+            </header>
+
+            <div
+              v-show="expandedKey === session.key"
+              class="session-body"
+              @click.stop
+            >
+              <p v-if="!session.items.length" class="session-body-empty">
+                本轮打卡尚未提交采集项，完成任务后将显示在此。
+              </p>
+              <div
+                v-for="record in session.items"
+                :key="record.id"
+                class="record-item"
+              >
+                <span class="record-item-type" :class="`type-${record.type}`">
+                  {{ record.typeLabel }}
+                </span>
+                <div class="record-item-main">
+                  <p class="record-item-summary">{{ record.summary }}</p>
+                  <p class="record-item-time">{{ record.timeLabel }}</p>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
-      </article>
+      </template>
     </template>
   </div>
 </template>
 
 <script setup>
 import { onActivated, onMounted, ref } from "vue";
+import { ArrowDown, ArrowUp } from "@element-plus/icons-vue";
 import { ensureLogin } from "../api/auth";
+import { hydrateFromServer } from "../utils/hydrate";
 import { loadRecordSessions } from "../utils/records";
 import { trackEvent } from "../utils/tracker";
 
@@ -82,8 +118,9 @@ function refresh() {
   sessions.value = data.sessions;
   totalCount.value = data.totalCount;
   const keys = new Set(data.sessions.map((s) => s.key));
-  if (!expandedKey.value || !keys.has(expandedKey.value)) {
-    expandedKey.value = data.sessions[0]?.key || "";
+  // 展开态失效时收起，不自动展开（详情改为点击后浮动显示）
+  if (expandedKey.value && !keys.has(expandedKey.value)) {
+    expandedKey.value = "";
   }
 }
 
@@ -100,6 +137,7 @@ async function loadPage() {
       trackEvent("records", "view");
       tracked = true;
     }
+    await hydrateFromServer();
     refresh();
   } catch (e) {
     error.value = e.message || String(e);
@@ -109,14 +147,24 @@ async function loadPage() {
 }
 
 onMounted(loadPage);
-onActivated(refresh);
+onActivated(async () => {
+  try {
+    await hydrateFromServer();
+  } catch {
+    /* ignore */
+  }
+  refresh();
+});
 </script>
 
 <style scoped>
 .page-records {
-  max-width: 720px;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   margin: 0 auto;
   padding-bottom: 24px;
+  box-sizing: border-box;
 }
 
 .records-summary {
@@ -149,6 +197,16 @@ onActivated(refresh);
   font-weight: 600;
   margin-top: 6px;
 }
+.records-summary-count-number {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.records-summary-sub-number {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+}
 
 .records-summary-sub {
   font-size: 13px;
@@ -177,27 +235,50 @@ onActivated(refresh);
   line-height: 1.6;
 }
 
+.session-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
 .session-group {
+  position: relative;
   background: #fff;
   border-radius: 16px;
-  margin-bottom: 16px;
-  overflow: hidden;
+  margin-bottom: 0;
+  overflow: visible;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   border: 1px solid #eef0f2;
+  min-width: 0;
+  z-index: 1;
+}
+
+.session-group.is-expanded {
+  z-index: 40;
+}
+
+@media (max-width: 720px) {
+  .session-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .session-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 18px 20px;
+  padding: 22px 14px;
   background: #f7faf8;
   cursor: pointer;
   user-select: none;
+  border-radius: 16px;
 }
 
 .session-group.is-expanded .session-header {
   border-bottom: 1px solid #e8ece9;
+  border-radius: 16px 16px 0 0;
 }
 
 .session-header-left {
@@ -221,7 +302,7 @@ onActivated(refresh);
   font-size: 20px;
   font-weight: 600;
   color: #222;
-  line-height: 1.3;
+  line-height: 1.1;
 }
 
 .session-header-right {
@@ -236,25 +317,53 @@ onActivated(refresh);
   position: absolute;
   right: 0;
   top: 2px;
-  font-size: 12px;
   color: #909399;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
+}
+
+.session-chevron .el-icon {
+  font-size: 14px;
 }
 
 .session-count {
   font-size: 15px;
   font-weight: 600;
-  color: #0f6e5c;
+  color: #49b968;
 }
 
 .session-time {
-  font-size: 12px;
-  color: #888;
-  margin-top: 6px;
+  margin: 20px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #222;
+  line-height: 1.3;
 }
 
 .session-body {
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 100%;
+  z-index: 50;
+  margin-top: -1px;
   padding: 4px 0;
+  background: #fff;
+  border: 1px solid #eef0f2;
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+}
+
+.session-body-empty {
+  margin: 0;
+  padding: 16px 20px;
+  font-size: 13px;
+  color: #909399;
+  line-height: 1.5;
 }
 
 .record-item {

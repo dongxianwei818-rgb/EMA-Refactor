@@ -49,6 +49,7 @@ import {
   isResearchBound,
 } from "../../utils/ema";
 import { getServerProfile } from "../../utils/consentState";
+import { hydrateFromServer } from "../../utils/hydrate";
 import {
   buildProfileDetailSections,
   formatBaselineTime,
@@ -59,6 +60,11 @@ const sections = ref([]);
 const baselineTimeStr = ref("");
 
 onMounted(async () => {
+  try {
+    await hydrateFromServer();
+  } catch {
+    /* ignore */
+  }
   const local = (await ensureBaselineProfile()) || {};
   const server = getServerProfile() || {};
   const profile = {

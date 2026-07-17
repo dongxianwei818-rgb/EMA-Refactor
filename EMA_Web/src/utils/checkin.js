@@ -1,12 +1,9 @@
 import http from '../api/http'
 import { formatClientAt } from './datetime'
+import { getStore } from './sessionStore'
 
 function getCheckinDaySnapshot() {
-  try {
-    return JSON.parse(localStorage.getItem('ema_checkin_day') || 'null')
-  } catch {
-    return null
-  }
+  return getStore().checkinDay
 }
 
 export function startCheckinSession(sessionId, startedAtMs, taskDate) {

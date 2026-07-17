@@ -1,27 +1,33 @@
 import http from '../api/http'
 import { getToken } from '../api/auth'
 import { formatClientAt } from './datetime'
+import { getStore } from './sessionStore'
 
-const KEY = 'ema_behavior_logs'
-const META_KEY = 'ema_behavior_meta'
 const MAX = 800
 const pendingQueue = []
-/** 上报队列：合并短时间内的打点，避免与路由抢网络 */
 const uploadQueue = []
 let uploadTimer = null
+/** 当前页任务计时（仅内存，不写 localStorage） */
+let taskTimer = null
 
-function readJson(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw == null) return fallback
-    return JSON.parse(raw)
-  } catch {
-    return fallback
-  }
+function getMeta() {
+  return getStore().behaviorMeta || {}
+}
+
+function setMeta(meta) {
+  getStore().behaviorMeta = meta
+}
+
+function getLogs() {
+  return Array.isArray(getStore().behaviorLogs) ? getStore().behaviorLogs : []
+}
+
+function setLogs(logs) {
+  getStore().behaviorLogs = logs
 }
 
 function updateMeta(module, action, extra) {
-  const meta = readJson(META_KEY, {
+  const meta = {
     openCount: 0,
     checkinTimes: [],
     diaryWordCounts: [],
@@ -30,9 +36,11 @@ function updateMeta(module, action, extra) {
     taskDurations: [],
     videoSkips: 0,
     voiceSkips: 0,
-  })
+    ...getMeta(),
+  }
   if (action === 'app_launch' || (action === 'view' && module === 'app')) meta.openCount++
   if (action === 'submit' && module === 'questionnaire') {
+    meta.checkinTimes = meta.checkinTimes || []
     meta.checkinTimes.push({
       at: Date.now(),
       hour: new Date().getHours(),
@@ -51,17 +59,22 @@ function updateMeta(module, action, extra) {
     meta.recheckinCount = (meta.recheckinCount || 0) + 1
   }
   if (action === 'submit' && module === 'diary' && extra?.length) {
+    meta.diaryWordCounts = meta.diaryWordCounts || []
     meta.diaryWordCounts.push(extra.length)
   }
   if (action === 'submit' && module === 'voice' && extra?.duration) {
+    meta.voiceDurations = meta.voiceDurations || []
     meta.voiceDurations.push(extra.duration)
   }
   if (action === 'submit' && module === 'video' && extra?.duration) {
     meta.videoDurations = meta.videoDurations || []
     meta.videoDurations.push(extra.duration)
   }
-  if (action === 'task_duration' && extra) meta.taskDurations.push(extra)
-  localStorage.setItem(META_KEY, JSON.stringify(meta))
+  if (action === 'task_duration' && extra) {
+    meta.taskDurations = meta.taskDurations || []
+    meta.taskDurations.push(extra)
+  }
+  setMeta(meta)
 }
 
 function postBehaviorEvent(entry) {
@@ -69,7 +82,6 @@ function postBehaviorEvent(entry) {
     pendingQueue.push(entry)
     return
   }
-  const meta = readJson(META_KEY, {})
   http
     .post('/behavior/track-log', {
       module: entry.module,
@@ -78,7 +90,7 @@ function postBehaviorEvent(entry) {
       route: entry.route || '',
       hour: entry.hour,
       client_at: formatClientAt(entry.at),
-      behavior_meta: meta,
+      behavior_meta: getMeta(),
     })
     .catch((err) => console.warn('行为打点上报失败', err))
 }
@@ -111,9 +123,9 @@ export function trackEvent(module, action, extra, route) {
     hour: new Date().getHours(),
     at: Date.now(),
   }
-  const logs = readJson(KEY, [])
+  const logs = getLogs()
   logs.unshift(entry)
-  localStorage.setItem(KEY, JSON.stringify(logs.slice(0, MAX)))
+  setLogs(logs.slice(0, MAX))
   updateMeta(module, action, extra)
   uploadQueue.push(entry)
   scheduleUpload()
@@ -121,30 +133,32 @@ export function trackEvent(module, action, extra, route) {
 }
 
 export function startTaskTimer(pageRoute) {
-  localStorage.setItem('ema_task_timer', JSON.stringify({ route: pageRoute, start: Date.now() }))
+  taskTimer = { route: pageRoute, start: Date.now() }
 }
 
 export function endTaskTimer(module) {
-  const raw = localStorage.getItem('ema_task_timer')
-  if (!raw) return 0
-  try {
-    const t = JSON.parse(raw)
-    if (t?.start) {
-      const ms = Date.now() - t.start
-      trackEvent(module, 'task_duration', { ms, route: t.route })
-      localStorage.removeItem('ema_task_timer')
-      return ms
-    }
-  } catch {
-    /* ignore */
-  }
-  return 0
+  if (!taskTimer?.start) return 0
+  const ms = Date.now() - taskTimer.start
+  const route = taskTimer.route
+  taskTimer = null
+  trackEvent(module, 'task_duration', { ms, route })
+  return ms
 }
 
 export function getBehaviorMeta() {
-  return readJson(META_KEY, {})
+  return getMeta()
 }
 
 export function getBehaviorLogs() {
-  return readJson(KEY, [])
+  return getLogs()
+}
+
+/** 用服务端拉取的行为数据覆盖会话仓 */
+export function replaceBehaviorFromServer(meta, logs) {
+  if (meta && typeof meta === 'object') {
+    setMeta(meta)
+  }
+  if (Array.isArray(logs)) {
+    setLogs(logs.slice(0, MAX))
+  }
 }

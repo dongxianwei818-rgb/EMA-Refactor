@@ -33,13 +33,19 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { buildBehaviorDetailSections } from "../../utils/behavior";
+import { hydrateFromServer } from "../../utils/hydrate";
 import { trackEvent } from "../../utils/tracker";
 
 const sections = ref([]);
 const hasData = ref(false);
 
-onMounted(() => {
+onMounted(async () => {
   trackEvent("my", "behavior_detail_view");
+  try {
+    await hydrateFromServer();
+  } catch {
+    /* ignore */
+  }
   const detail = buildBehaviorDetailSections();
   sections.value = detail.sections;
   hasData.value = detail.sections.length > 0 || detail.logs.length > 0;

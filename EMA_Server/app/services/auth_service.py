@@ -35,7 +35,7 @@ def get_or_create_user(db: Session, openid: str, client_type: str | None = None)
 
 
 def record_user_login(db: Session, user, client_type: str | None = None) -> dict:
-    m = models_for(client_type)
+    m = models_for(client_type=client_type, user=user, db=db)
     UserLoginLog = m.UserLoginLog
     logged_at = datetime.now()
     user.login_count = (user.login_count or 0) + 1
@@ -61,7 +61,8 @@ def record_user_login(db: Session, user, client_type: str | None = None) -> dict
 
 
 def record_user_logout(db: Session, user, client_type: str | None = None) -> dict:
-    UserLoginLog = models_for(client_type).UserLoginLog
+    # 必须按 user/db 选模型：web 库列为 user_name，wechat/app 为 openid
+    UserLoginLog = models_for(client_type=client_type, user=user, db=db).UserLoginLog
     logout_at = datetime.now()
     principal = user_principal(user)
     log = (

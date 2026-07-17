@@ -1,94 +1,97 @@
 <template>
   <div class="page-my">
-    <section class="card profile-card kv-card">
-      <div class="profile-card-head">
-        <h3 class="section-title">基本信息</h3>
-        <button type="button" class="profile-more" @click="goProfileDetail">
-          {{ hasBaselineBound ? "查看详情" : "去填写" }}
-          <span class="profile-more-arrow">›</span>
-        </button>
-      </div>
+    <div class="profile-container">
+      <section class="card profile-card kv-card">
+        <div class="profile-card-head">
+          <h3 class="section-title">基本信息</h3>
+          <button type="button" class="profile-more" @click="goProfileDetail">
+            {{ hasBaselineBound ? "查看详情" : "去填写" }}
+            <span class="profile-more-arrow">›</span>
+          </button>
+        </div>
 
-      <template v-if="hasBaselineBound">
-        <div v-if="researchId" class="profile-id">
-          研究编号 {{ researchId }}
+        <template v-if="hasBaselineBound">
+          <div v-if="researchId" class="profile-id">
+            研究编号 {{ researchId }}
+          </div>
+          <div class="kv-list">
+            <div
+              v-for="(item, idx) in basicInfo"
+              :key="item.id || item.label"
+              class="profile-row"
+              :class="{ 'is-last': idx === basicInfo.length - 1 }"
+            >
+              <span class="profile-label" :class="`label-${item.id}`">{{
+                item.label
+              }}</span>
+              <span class="profile-value">{{ item.value }}</span>
+            </div>
+          </div>
+          <p v-if="!basicInfo.length && !researchId" class="profile-empty">
+            暂无已填写的基本信息
+          </p>
+        </template>
+        <p v-else class="profile-empty">尚未完成基线测评，点击前往填写。</p>
+      </section>
+
+      <section class="card profile-card kv-card">
+        <div class="profile-card-head">
+          <h3 class="section-title">使用行为</h3>
+          <button type="button" class="profile-more" @click="goBehaviorDetail">
+            查看详情
+            <span class="profile-more-arrow">›</span>
+          </button>
         </div>
         <div class="kv-list">
           <div
-            v-for="(item, idx) in basicInfo"
-            :key="item.id || item.label"
+            v-for="(item, idx) in behaviorInfo"
+            :key="item.id"
             class="profile-row"
-            :class="{ 'is-last': idx === basicInfo.length - 1 }"
+            :class="{ 'is-last': idx === behaviorInfo.length - 1 }"
           >
             <span class="profile-label" :class="`label-${item.id}`">{{
               item.label
             }}</span>
-            <span class="profile-value">{{ item.value }}</span>
+            <span class="profile-value">{{ item.value }} {{ item.unit }}</span>
           </div>
         </div>
-        <p v-if="!basicInfo.length && !researchId" class="profile-empty">
-          暂无已填写的基本信息
-        </p>
-      </template>
-      <p v-else class="profile-empty">尚未完成基线测评，点击前往填写。</p>
-    </section>
-
-    <section class="card profile-card kv-card">
-      <div class="profile-card-head">
-        <h3 class="section-title">使用行为</h3>
-        <button type="button" class="profile-more" @click="goBehaviorDetail">
-          查看详情
-          <span class="profile-more-arrow">›</span>
+        <p class="kv-footnote">连续缺测天数可作研究信号参考</p>
+      </section>
+    </div>
+    <div class="button-container">
+      <template v-if="!isAdminUser">
+        <button type="button" class="btn-secondary" @click="goConsentView">
+          查看知情同意
         </button>
-      </div>
-      <div class="kv-list">
-        <div
-          v-for="(item, idx) in behaviorInfo"
-          :key="item.id"
-          class="profile-row"
-          :class="{ 'is-last': idx === behaviorInfo.length - 1 }"
+        <button
+          v-if="consented"
+          type="button"
+          class="btn-revoke"
+          :disabled="revoking"
+          @click="onRevokeConsent"
         >
-          <span class="profile-label" :class="`label-${item.id}`">{{
-            item.label
-          }}</span>
-          <span class="profile-value">{{ item.value }}</span>
-        </div>
-      </div>
-      <p class="kv-footnote">连续缺测天数可作研究信号参考</p>
-    </section>
+          {{ revoking ? "处理中…" : "撤回授权" }}
+        </button>
+        <button
+          type="button"
+          class="btn-secondary btn-exit"
+          :disabled="exiting"
+          @click="exitStudy"
+        >
+          {{ exiting ? "退出中…" : "退出研究" }}
+        </button>
+      </template>
 
-    <template v-if="!isAdminUser">
-      <button type="button" class="btn-secondary" @click="goConsentView">
-        查看知情同意
-      </button>
       <button
-        v-if="consented"
-        type="button"
-        class="btn-revoke"
-        :disabled="revoking"
-        @click="onRevokeConsent"
-      >
-        {{ revoking ? "处理中…" : "撤回授权" }}
-      </button>
-      <button
+        v-else
         type="button"
         class="btn-secondary"
-        :disabled="exiting"
-        @click="exitStudy"
+        :disabled="loggingOut"
+        @click="logout"
       >
-        {{ exiting ? "退出中…" : "退出研究" }}
+        {{ loggingOut ? "退出中…" : "退出登录" }}
       </button>
-    </template>
-
-    <button
-      v-else
-      type="button"
-      class="btn-secondary"
-      :disabled="loggingOut"
-      @click="logout"
-    >
-      {{ loggingOut ? "退出中…" : "退出登录" }}
-    </button>
+    </div>
   </div>
 </template>
 
@@ -114,6 +117,7 @@ import {
   hasBaseline,
   isResearchBound,
 } from "../utils/ema";
+import { hydrateFromServer } from "../utils/hydrate";
 import { invalidateOnboardingGate } from "../utils/onboardingGate";
 import { buildBasicSummary } from "../utils/profile";
 import { trackEvent } from "../utils/tracker";
@@ -139,14 +143,49 @@ const checkinHoursText = computed(() => {
 const behaviorInfo = computed(() => {
   const s = stats.value || {};
   return [
-    { id: "openCount", label: "打开次数", value: s.openCount ?? 0 },
-    { id: "missedDays", label: "连续缺测", value: s.missedDays ?? 0 },
-    { id: "avgDiary", label: "日记字数", value: s.avgDiaryWords ?? 0 },
-    { id: "avgVoice", label: "语音时长", value: `${s.avgVoiceSec ?? 0} 秒` },
-    { id: "avgVideo", label: "视频时长", value: `${s.avgVideoSec ?? 0} 秒` },
-    { id: "voiceSkips", label: "语音跳过", value: s.voiceSkips ?? 0 },
-    { id: "videoSkips", label: "视频跳过", value: s.videoSkips ?? 0 },
-    { id: "checkinHours", label: "打卡时段", value: checkinHoursText.value },
+    { id: "openCount", label: "打开次数", value: s.openCount ?? 0, unit: "次" },
+    {
+      id: "missedDays",
+      label: "连续缺测天数",
+      value: s.missedDays ?? 0,
+      unit: "天",
+    },
+    {
+      id: "avgDiary",
+      label: "平均日记字数",
+      value: s.avgDiaryWords ?? 0,
+      unit: "字",
+    },
+    {
+      id: "avgVoice",
+      label: "平均语音时长",
+      value: `${s.avgVoiceSec ?? 0}`,
+      unit: "秒",
+    },
+    {
+      id: "avgVideo",
+      label: "平均视频时长",
+      value: `${s.avgVideoSec ?? 0}`,
+      unit: "秒",
+    },
+    {
+      id: "voiceSkips",
+      label: "语音跳过次数",
+      value: s.voiceSkips ?? 0,
+      unit: "次",
+    },
+    {
+      id: "videoSkips",
+      label: "视频跳过次数",
+      value: s.videoSkips ?? 0,
+      unit: "次",
+    },
+    {
+      id: "checkinHours",
+      label: "最近打卡时段(时)",
+      value: checkinHoursText.value,
+      unit: "时",
+    },
   ];
 });
 
@@ -166,8 +205,13 @@ function applyProfile(local) {
 }
 
 async function refresh() {
-  const local = await ensureBaselineProfile();
-  applyProfile(local || {});
+  try {
+    await hydrateFromServer();
+  } catch (e) {
+    console.warn("同步用户数据失败", e);
+  }
+  const local = (await ensureBaselineProfile()) || {};
+  applyProfile(local);
 }
 
 function goProfileDetail() {
@@ -283,9 +327,28 @@ onMounted(async () => {
 
 <style scoped>
 .page-my {
-  max-width: 720px;
+  width: 100%;
   margin: 0 auto;
   padding-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.profile-container {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+}
+.button-container {
+  display: flex;
+  flex-direction: row;
+  gap: 60px;
+  flex: 1;
+  margin-top: 30px;
+  justify-content: center;
+}
+.profile-card {
+  width: 50%;
 }
 
 .card {
@@ -361,7 +424,7 @@ onMounted(async () => {
   border-radius: 6px;
   text-align: center;
   line-height: 1.3;
-  max-width: 88px;
+  max-width: 120px;
 }
 
 .kv-card .label-age,
@@ -438,7 +501,7 @@ onMounted(async () => {
 .btn-secondary,
 .btn-revoke {
   display: block;
-  width: 100%;
+  width: 20%;
   height: 44px;
   margin-bottom: 12px;
   border-radius: 999px;
@@ -449,19 +512,24 @@ onMounted(async () => {
 
 .btn-secondary {
   background: #fff;
-  color: #0f6e5c;
-  border: 1px solid #0f6e5c;
+  color: #07c160;
+  border: 1px solid #07c160;
 }
 
 .btn-revoke {
   background: #fff;
-  color: #e64340;
-  border: 1px solid #e64340;
+  color: #304ccc;
+  border: 1px solid #304ccc;
 }
 
 .btn-secondary:disabled,
 .btn-revoke:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+.btn-exit {
+  background: #fff;
+  color: red;
+  border: 1px solid red;
 }
 </style>

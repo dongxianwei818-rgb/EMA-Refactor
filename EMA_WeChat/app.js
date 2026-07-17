@@ -14,7 +14,7 @@ App({
         console.log("WeChat user id:", loginData.openid);
       })
       .catch(function (err) {
-        console.warn("登录失败", err);
+        console.warn("登录失败", (err && err.message) || err);
       });
   },
   onShow: function () {
@@ -27,7 +27,7 @@ App({
           if (app) app._sessionActive = true;
         })
         .catch(function (err) {
-          console.warn("记录登录失败", err);
+          console.warn("记录登录失败", (err && err.message) || err);
         });
     }
   },
@@ -36,7 +36,7 @@ App({
     if (this._sessionActive) {
       this._sessionActive = false;
       auth.recordLogoutLog().catch(function (err) {
-        console.warn("记录登出失败", err);
+        console.warn("记录登出失败", (err && err.message) || err);
       });
     }
   },

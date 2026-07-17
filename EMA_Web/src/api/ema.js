@@ -112,7 +112,7 @@ export function fetchTrendsOverview(days = 7) {
 }
 
 export function trackBehavior(module, action, extra, route) {
-  const meta = JSON.parse(localStorage.getItem('ema_behavior_meta') || '{}') || {}
+  // 行为 meta 已在 tracker 会话仓；此处仅兼容旧调用
   return http.post('/behavior/track-log', {
     module,
     action,
@@ -120,6 +120,6 @@ export function trackBehavior(module, action, extra, route) {
     route: route || window.location.pathname,
     hour: new Date().getHours(),
     client_at: formatClientAt(Date.now()),
-    behavior_meta: meta,
+    behavior_meta: {},
   })
 }

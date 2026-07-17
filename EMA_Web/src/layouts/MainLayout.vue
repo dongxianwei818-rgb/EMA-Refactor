@@ -52,6 +52,7 @@ import {
   Warning,
 } from "@element-plus/icons-vue";
 import { isAdmin, logout as logoutSession } from "../api/auth";
+import { invalidateHydrateCache } from "../utils/sessionStore";
 
 /** 普通用户顶栏 */
 const userTabs = [
@@ -85,6 +86,7 @@ async function onLogout() {
   try {
     await logoutSession();
   } finally {
+    invalidateHydrateCache();
     loggingOut.value = false;
     router.replace("/login");
   }
@@ -94,6 +96,7 @@ async function onLogout() {
 <style scoped>
 .main-layout {
   min-height: 100vh;
+  height: 100vh;
   background: var(--el-bg-color-page, #eef3f1);
 }
 
@@ -137,6 +140,18 @@ async function onLogout() {
   width: 100%;
   margin: 0 auto;
   padding: 16px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+/* router-view 渲染的页面根节点铺满主内容区 */
+.app-main > * {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
 }
 
 .app-main--wide {

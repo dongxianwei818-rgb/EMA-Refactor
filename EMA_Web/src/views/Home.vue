@@ -12,8 +12,8 @@
         <p class="hero-subtitle">
           问卷 + 文本 + 语音 + 视频 + 运动步数 + 使用行为分析
         </p>
-        <p class="hero-subtitle">指导老师：徐凯文</p>
-        <p class="hero-subtitle">研究团队：王宇</p>
+        <p class="hero-subtitle">指导老师：***</p>
+        <p class="hero-subtitle">研究团队：***</p>
       </el-card>
       <el-card shadow="never" class="page-card hero-todo">
         <template #header>
@@ -70,6 +70,7 @@ import { fetchDailyTasks } from "../api/ema";
 import { isAdmin } from "../api/auth";
 import { TASK_META } from "../constants/ema";
 import {
+  applyDailyTasksResponse,
   ensureCheckinSession,
   getNextTaskRoute,
   getTaskProgress,
@@ -81,6 +82,7 @@ import {
   startRecheckin,
 } from "../utils/ema";
 import { hasConsent } from "../utils/consentState";
+import { hydrateFromServer } from "../utils/hydrate";
 import { markOnboardingSynced } from "../utils/onboardingGate";
 import { trackEvent } from "../utils/tracker";
 
@@ -163,7 +165,7 @@ async function startFlow() {
           confirmButtonText: "重新打卡",
           cancelButtonText: "取消",
         });
-        const sessionId = startRecheckin();
+        const sessionId = await startRecheckin();
         trackEvent("home", "recheckin_start", { sessionId });
         await navigateToNextTask(true, sessionId);
       } catch {
@@ -208,14 +210,15 @@ onMounted(async () => {
   // 首页已确认入组完成，延长门控新鲜度，避免进打卡页再等 /users/me
   markOnboardingSynced();
   prefetchEmaChunks();
-  // 先渲染本地进度，再后台同步服务端任务态
   refresh();
   trackEvent("home", "view");
   try {
-    await fetchDailyTasks(getTodayKey(), ensureCheckinSession());
+    await hydrateFromServer();
+    const daily = await fetchDailyTasks(getTodayKey(), ensureCheckinSession());
+    applyDailyTasksResponse(daily);
     refresh();
   } catch {
-    /* 离线仍展示本地进度 */
+    /* 离线仍展示本地缓存 */
   }
 });
 </script>
@@ -231,6 +234,7 @@ onMounted(async () => {
   flex-direction: row;
   gap: 16px;
   flex: 1;
+  max-height: 250px;
 }
 .hero-info {
   flex-direction: row;
@@ -286,13 +290,16 @@ onMounted(async () => {
 
 .start-btn {
   width: 100%;
+  background: #07c160;
+  border: 0;
 }
 
 .recheckin-hint {
   text-align: center;
   font-size: 12px;
-  color: #909399;
+  color: #f89898;
   margin-top: 8px;
+  margin-bottom: 0;
 }
 
 .task-card {

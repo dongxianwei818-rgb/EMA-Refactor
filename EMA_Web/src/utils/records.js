@@ -1,4 +1,5 @@
-import { getSubmissions, getVideoSkips, getVoiceSkips, getTodayKey } from './ema'
+import { getSubmissions, getVideoSkips, getVoiceSkips, getTodayKey, getTodayCheckinSessions } from './ema'
+import { getStore } from './sessionStore'
 
 const LABELS = {
   questionnaire: 'EMA 问卷',
@@ -83,6 +84,33 @@ function mergeSkipRecords(list) {
   return merged
 }
 
+/** 把当日 checkin_sessions 合并进列表，保证重新打卡后即使尚无采集项也能在记录页看到该轮 */
+function mergeCheckinSessions(list) {
+  const merged = list.slice()
+  const today = getTodayKey()
+  const day = getStore().checkinDay
+  const sessions =
+    day && day.date === today
+      ? day.sessions || []
+      : getTodayCheckinSessions()
+
+  sessions.forEach((s) => {
+    const sid = Number(s.id) || 1
+    const exists = merged.some(
+      (item) => item.date === today && (item.sessionId || 1) === sid,
+    )
+    if (exists) return
+    merged.push({
+      type: '_session',
+      payload: { placeholder: true },
+      date: today,
+      at: s.startedAt || Date.now(),
+      sessionId: sid,
+    })
+  })
+  return merged
+}
+
 export function groupSubmissions(list) {
   const groups = {}
   list.forEach((item) => {
@@ -104,8 +132,9 @@ export function groupSubmissions(list) {
       if (!g.startedAt || item.at < g.startedAt) g.startedAt = item.at
       if (!g.endedAt || item.at > g.endedAt) g.endedAt = item.at
     }
+    if (item.type === '_session') return
     g.items.push({
-      id: `${item.type}_${item.at || 0}`,
+      id: `${item.type}_${item.at || 0}_${sid}`,
       type: item.type,
       typeLabel: LABELS[item.type] || item.type,
       summary: buildItemSummary(item),
@@ -122,16 +151,21 @@ export function groupSubmissions(list) {
   sessions.forEach((s) => {
     s.items.sort((a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type))
     s.itemCount = s.items.length
-    s.timeRange =
-      s.startedAt && s.endedAt && s.startedAt !== s.endedAt
-        ? `${formatTime(s.startedAt)} – ${formatTime(s.endedAt)}`
-        : formatTime(s.startedAt || s.endedAt)
+    if (!s.items.length) {
+      s.timeRange = formatTime(s.startedAt)
+    } else {
+      s.timeRange =
+        s.startedAt && s.endedAt && s.startedAt !== s.endedAt
+          ? `${formatTime(s.startedAt)} – ${formatTime(s.endedAt)}`
+          : formatTime(s.startedAt || s.endedAt)
+    }
   })
 
   return sessions
 }
 
 export function loadRecordSessions() {
-  const raw = mergeSkipRecords(getSubmissions())
-  return { sessions: groupSubmissions(raw), totalCount: raw.length }
+  const raw = mergeCheckinSessions(mergeSkipRecords(getSubmissions()))
+  const realCount = raw.filter((r) => r.type !== '_session').length
+  return { sessions: groupSubmissions(raw), totalCount: realCount }
 }

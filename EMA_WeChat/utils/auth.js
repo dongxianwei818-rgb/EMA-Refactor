@@ -17,6 +17,17 @@ function saveWeChatUserId(openid) {
   }
 }
 
+/** 把 wx.request / wx.login 的 fail 对象转成可读 Error，避免控制台只显示 [object Object] */
+function toError(err, fallback) {
+  if (err instanceof Error) return err;
+  if (typeof err === "string") return new Error(err);
+  if (err && typeof err === "object") {
+    var msg = err.errMsg || err.message || err.msg;
+    if (typeof msg === "string" && msg) return new Error(msg);
+  }
+  return new Error(fallback || "网络请求失败");
+}
+
 function fetchOpenIdByCode(code) {
   return new Promise(function (resolve, reject) {
     if (!C.API_BASE_URL) {
@@ -39,7 +50,7 @@ function fetchOpenIdByCode(code) {
         reject(new Error(body.message || "获取 openid 失败"));
       },
       fail: function (err) {
-        reject(err);
+        reject(toError(err, "获取 openid 网络失败"));
       },
     });
   });
@@ -69,7 +80,9 @@ function fetchUserProfile() {
         }
         reject(new Error((body && body.message) || "获取用户信息失败"));
       },
-      fail: reject,
+      fail: function (err) {
+        reject(toError(err, "获取用户信息网络失败"));
+      },
     });
   });
 }
@@ -108,7 +121,9 @@ function recordLoginLog() {
         }
         reject(new Error(msg || "记录登录失败"));
       },
-      fail: reject,
+      fail: function (err) {
+        reject(toError(err, "记录登录网络失败"));
+      },
     });
   });
 }
@@ -146,7 +161,9 @@ function recordLogoutLog() {
         }
         reject(new Error(msg || "记录登出失败"));
       },
-      fail: reject,
+      fail: function (err) {
+        reject(toError(err, "记录登出网络失败"));
+      },
     });
   });
 }
@@ -176,9 +193,13 @@ function loginWeChatUser() {
             checkin.flushPendingStarts();
             resolve(data);
           })
-          .catch(reject);
+          .catch(function (err) {
+            reject(toError(err, "登录失败"));
+          });
       },
-      fail: reject,
+      fail: function (err) {
+        reject(toError(err, "wx.login 失败"));
+      },
     });
   });
 }
