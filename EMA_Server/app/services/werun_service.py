@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import User
+from app.services.user_identity import user_principal
 from app.services.wechat_crypto import decrypt_wechat_data
 from app.services.wechat_session import jscode2session
 
@@ -44,20 +44,21 @@ def _extract_today_steps(step_info_list: list[dict[str, Any]]) -> int:
     return latest_steps
 
 
-def _mock_steps(openid: str) -> int:
-    base = sum(ord(c) for c in openid) % 4000
+def _mock_steps(principal: str) -> int:
+    base = sum(ord(c) for c in principal) % 4000
     return 3000 + base
 
 
 async def decrypt_werun_steps(
     db: Session,
-    user: User,
+    user,
     code: str,
     encrypted_data: str,
     iv: str,
 ) -> dict[str, Any]:
+    principal = user_principal(user)
     if settings.mock_wx_login or not settings.wechat_app_id:
-        steps = _mock_steps(user.openid)
+        steps = _mock_steps(principal)
         return {
             "steps": steps,
             "date": datetime.now(CN_TZ).strftime("%Y-%m-%d"),
@@ -66,7 +67,9 @@ async def decrypt_werun_steps(
         }
 
     session = await jscode2session(code)
-    if session["openid"] != user.openid:
+    session_openid = session.get("openid") or ""
+    user_openid = getattr(user, "openid", None) or ""
+    if session_openid != user_openid:
         raise ValueError("登录用户与当前账号不一致，请重新进入小程序")
 
     user.session_key = session["session_key"]

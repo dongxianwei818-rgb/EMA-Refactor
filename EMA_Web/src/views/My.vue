@@ -1,165 +1,467 @@
 <template>
   <div class="page-my">
-    <el-card shadow="never" class="page-card">
-      <template #header>
-        <div class="card-header">
-          <span>账号信息</span>
-          <el-button link type="primary" :loading="loggingOut" @click="logout">
-            退出登录
-          </el-button>
-        </div>
-      </template>
-      <el-descriptions :column="1" border size="small">
-        <el-descriptions-item label="用户名">
-          {{ profile.user_name || userName || '未登录' }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="userId" label="用户 ID">
-          {{ userId }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="roleLabel" label="角色">
-          {{ roleLabel }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="profile.research_id" label="研究编号">
-          {{ profile.research_id }}
-        </el-descriptions-item>
-        <el-descriptions-item label="研究状态">
-          <el-tag size="small" :type="profile.study_status === 'active' ? 'success' : 'info'">
-            {{ profile.study_status || '—' }}
-          </el-tag>
-        </el-descriptions-item>
-      </el-descriptions>
-    </el-card>
-
-    <el-card v-if="!isAdminUser" shadow="never" class="page-card">
-      <template #header>
-        <span>知情同意</span>
-      </template>
-      <div class="btn-group">
-        <el-button @click="goConsentView">查看知情同意</el-button>
-        <el-button
-          v-if="consented"
-          type="danger"
-          plain
-          :loading="revoking"
-          @click="onRevokeConsent"
-        >
-          撤回授权
-        </el-button>
+    <section class="card profile-card kv-card">
+      <div class="profile-card-head">
+        <h3 class="section-title">基本信息</h3>
+        <button type="button" class="profile-more" @click="goProfileDetail">
+          {{ hasBaselineBound ? "查看详情" : "去填写" }}
+          <span class="profile-more-arrow">›</span>
+        </button>
       </div>
-    </el-card>
 
-    <el-alert
-      title="非诊断支持工具，不能替代专业医疗或心理咨询。"
-      type="info"
-      :closable="false"
-      show-icon
-    />
+      <template v-if="hasBaselineBound">
+        <div v-if="researchId" class="profile-id">
+          研究编号 {{ researchId }}
+        </div>
+        <div class="kv-list">
+          <div
+            v-for="(item, idx) in basicInfo"
+            :key="item.id || item.label"
+            class="profile-row"
+            :class="{ 'is-last': idx === basicInfo.length - 1 }"
+          >
+            <span class="profile-label" :class="`label-${item.id}`">{{
+              item.label
+            }}</span>
+            <span class="profile-value">{{ item.value }}</span>
+          </div>
+        </div>
+        <p v-if="!basicInfo.length && !researchId" class="profile-empty">
+          暂无已填写的基本信息
+        </p>
+      </template>
+      <p v-else class="profile-empty">尚未完成基线测评，点击前往填写。</p>
+    </section>
+
+    <section class="card profile-card kv-card">
+      <div class="profile-card-head">
+        <h3 class="section-title">使用行为</h3>
+        <button type="button" class="profile-more" @click="goBehaviorDetail">
+          查看详情
+          <span class="profile-more-arrow">›</span>
+        </button>
+      </div>
+      <div class="kv-list">
+        <div
+          v-for="(item, idx) in behaviorInfo"
+          :key="item.id"
+          class="profile-row"
+          :class="{ 'is-last': idx === behaviorInfo.length - 1 }"
+        >
+          <span class="profile-label" :class="`label-${item.id}`">{{
+            item.label
+          }}</span>
+          <span class="profile-value">{{ item.value }}</span>
+        </div>
+      </div>
+      <p class="kv-footnote">连续缺测天数可作研究信号参考</p>
+    </section>
+
+    <template v-if="!isAdminUser">
+      <button type="button" class="btn-secondary" @click="goConsentView">
+        查看知情同意
+      </button>
+      <button
+        v-if="consented"
+        type="button"
+        class="btn-revoke"
+        :disabled="revoking"
+        @click="onRevokeConsent"
+      >
+        {{ revoking ? "处理中…" : "撤回授权" }}
+      </button>
+      <button
+        type="button"
+        class="btn-secondary"
+        :disabled="exiting"
+        @click="exitStudy"
+      >
+        {{ exiting ? "退出中…" : "退出研究" }}
+      </button>
+    </template>
+
+    <button
+      v-else
+      type="button"
+      class="btn-secondary"
+      :disabled="loggingOut"
+      @click="logout"
+    >
+      {{ loggingOut ? "退出中…" : "退出登录" }}
+    </button>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
+  clearAuth,
   ensureLogin,
-  fetchProfile,
-  getRole,
-  getUserId,
-  getUserName,
   isAdmin,
   logout as logoutSession,
-} from '../api/auth'
-import { recordRevokeLog } from '../api/consent'
-import { applyConsentFromServer, hasConsent } from '../utils/consentState'
+} from "../api/auth";
+import { recordExitLog, recordRevokeLog } from "../api/consent";
+import { getBehaviorStats } from "../utils/behaviorStats";
+import {
+  applyConsentFromServer,
+  getServerProfile,
+  hasConsent,
+} from "../utils/consentState";
+import {
+  ensureBaselineProfile,
+  hasBaseline,
+  isResearchBound,
+} from "../utils/ema";
+import { invalidateOnboardingGate } from "../utils/onboardingGate";
+import { buildBasicSummary } from "../utils/profile";
+import { trackEvent } from "../utils/tracker";
 
-const router = useRouter()
-const profile = ref({})
-const userName = ref('')
-const userId = ref('')
-const consented = ref(false)
-const revoking = ref(false)
-const loggingOut = ref(false)
-const isAdminUser = ref(false)
+const router = useRouter();
+const profile = ref({});
+const basicInfo = ref([]);
+const hasBaselineBound = ref(false);
+const consented = ref(false);
+const stats = ref({});
+const revoking = ref(false);
+const exiting = ref(false);
+const loggingOut = ref(false);
+const isAdminUser = ref(false);
 
-const roleLabel = computed(() => {
-  const role = profile.value.role ?? getRole()
-  if (role === 0) return '管理员'
-  if (role === 1 || role == null) return '普通用户'
-  return String(role)
-})
+const researchId = computed(
+  () => profile.value.researchId || profile.value.research_id || "",
+);
+const checkinHoursText = computed(() => {
+  const hours = stats.value.checkinHours || [];
+  return hours.length ? hours.join(", ") : "—";
+});
+const behaviorInfo = computed(() => {
+  const s = stats.value || {};
+  return [
+    { id: "openCount", label: "打开次数", value: s.openCount ?? 0 },
+    { id: "missedDays", label: "连续缺测", value: s.missedDays ?? 0 },
+    { id: "avgDiary", label: "日记字数", value: s.avgDiaryWords ?? 0 },
+    { id: "avgVoice", label: "语音时长", value: `${s.avgVoiceSec ?? 0} 秒` },
+    { id: "avgVideo", label: "视频时长", value: `${s.avgVideoSec ?? 0} 秒` },
+    { id: "voiceSkips", label: "语音跳过", value: s.voiceSkips ?? 0 },
+    { id: "videoSkips", label: "视频跳过", value: s.videoSkips ?? 0 },
+    { id: "checkinHours", label: "打卡时段", value: checkinHoursText.value },
+  ];
+});
 
-async function load() {
-  await ensureLogin()
-  userName.value = getUserName()
-  userId.value = getUserId()
-  isAdminUser.value = isAdmin()
-  consented.value = hasConsent()
-  try {
-    profile.value = (await fetchProfile()) || {}
-  } catch {
-    profile.value = {}
-  }
+function applyProfile(local) {
+  const server = getServerProfile() || {};
+  const p = {
+    ...local,
+    researchId:
+      local.researchId || local.research_id || server.research_id || "",
+  };
+  profile.value = p;
+  basicInfo.value = buildBasicSummary(p);
+  hasBaselineBound.value = isResearchBound() || hasBaseline();
+  consented.value = hasConsent();
+  isAdminUser.value = isAdmin();
+  stats.value = getBehaviorStats();
 }
 
-async function logout() {
-  if (loggingOut.value) return
-  loggingOut.value = true
-  try {
-    await logoutSession()
-  } finally {
-    loggingOut.value = false
-    router.replace('/login')
+async function refresh() {
+  const local = await ensureBaselineProfile();
+  applyProfile(local || {});
+}
+
+function goProfileDetail() {
+  if (!hasBaselineBound.value) {
+    if (!hasConsent()) {
+      router.push("/consent");
+      return;
+    }
+    router.push("/baseline");
+    return;
   }
+  router.push("/my/profile");
+}
+
+function goBehaviorDetail() {
+  router.push("/my/behavior");
 }
 
 function goConsentView() {
-  router.push({ path: '/consent', query: { mode: 'view' } })
+  router.push({ path: "/consent", query: { mode: "view" } });
 }
 
 async function onRevokeConsent() {
-  if (!consented.value || revoking.value) return
-  const ok = window.confirm(
-    '确认撤回知情同意与隐私授权？撤回后将停止新的数据采集，再次使用需重新同意。',
-  )
-  if (!ok) return
-  const at = Date.now()
-  revoking.value = true
+  if (!consented.value || revoking.value) return;
   try {
-    const data = await recordRevokeLog({ source: 'my', page: 'my' }, at)
+    await ElMessageBox.confirm(
+      "确认撤回知情同意与隐私授权？撤回后将停止新的数据采集，再次使用需重新同意。",
+      "撤回授权",
+      {
+        confirmButtonText: "确认撤回",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+  } catch {
+    return;
+  }
+  const at = Date.now();
+  revoking.value = true;
+  trackEvent("consent", "revoke");
+  try {
+    const data = await recordRevokeLog({ source: "my", page: "my" }, at);
     applyConsentFromServer({
       has_consent: false,
-      status: 'revoke',
+      status: "revoke",
       at: data.at || at,
-    })
+    });
   } catch (e) {
-    console.warn('记录撤回授权失败', e)
-    applyConsentFromServer({ has_consent: false, status: 'revoke', at })
+    console.warn("记录撤回授权失败", e);
+    applyConsentFromServer({ has_consent: false, status: "revoke", at });
   } finally {
-    consented.value = false
-    revoking.value = false
-    router.replace('/consent')
+    invalidateOnboardingGate();
+    consented.value = false;
+    revoking.value = false;
+    ElMessage.success("已撤回授权");
+    router.replace("/consent");
   }
 }
 
-onMounted(load)
+async function exitStudy() {
+  try {
+    await ElMessageBox.confirm(
+      "确认解绑研究编号（再次登录时需要重新知情同意并绑定研究编号），清除本地数据并退出？",
+      "退出研究",
+      {
+        confirmButtonText: "确认退出",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+  } catch {
+    return;
+  }
+  exiting.value = true;
+  const at = Date.now();
+  trackEvent("my", "exit_study");
+  try {
+    await recordExitLog({ source: "my", page: "my" }, at);
+  } catch (e) {
+    console.warn("记录退出研究失败", e);
+  }
+  try {
+    await logoutSession();
+  } catch {
+    clearAuth();
+  }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
+  exiting.value = false;
+  router.replace("/login");
+}
+
+async function logout() {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    await logoutSession();
+  } finally {
+    loggingOut.value = false;
+    router.replace("/login");
+  }
+}
+
+onMounted(async () => {
+  await ensureLogin();
+  trackEvent("my", "view");
+  refresh();
+});
 </script>
 
 <style scoped>
-.page-card {
-  margin-bottom: 16px;
-  border-radius: 16px;
+.page-my {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 24px;
 }
 
-.card-header {
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eef0f2;
+}
+
+.profile-card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-weight: 600;
+  margin-bottom: 8px;
 }
 
-.btn-group {
+.section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #333;
+}
+
+.profile-more {
+  border: none;
+  background: transparent;
+  color: #07c160;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.profile-more-arrow {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.profile-id {
+  font-size: 18px;
+  font-weight: 600;
+  color: #222;
+  line-height: 1.4;
+  margin: 0 0 4px;
+}
+
+.kv-list {
+  margin-top: 4px;
+}
+
+.kv-card .profile-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f4;
+  gap: 12px;
+}
+
+.kv-card .profile-row.is-last {
+  border-bottom: none;
+}
+
+.kv-card .profile-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-align: center;
+  line-height: 1.3;
+  max-width: 88px;
+}
+
+.kv-card .label-age,
+.kv-card .label-openCount {
+  background: #e8f4ff;
+  color: #1677ff;
+}
+
+.kv-card .label-grade,
+.kv-card .label-missedDays {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.kv-card .label-major,
+.kv-card .label-avgDiary {
+  background: #f3e8ff;
+  color: #7b1fa2;
+}
+
+.kv-card .label-gender,
+.kv-card .label-avgVoice {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.kv-card .label-onlyChild,
+.kv-card .label-avgVideo {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.kv-card .label-housing,
+.kv-card .label-voiceSkips {
+  background: #e0f7fa;
+  color: #00838f;
+}
+
+.kv-card .label-videoSkips {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.kv-card .label-checkinHours {
+  background: #ede7f6;
+  color: #5e35b1;
+}
+
+.kv-card .profile-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  text-align: right;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.kv-footnote {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+}
+
+.profile-empty {
+  margin: 0;
+  font-size: 14px;
+  color: #999;
+  line-height: 1.6;
+}
+
+.btn-secondary,
+.btn-revoke {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background: #fff;
+  color: #0f6e5c;
+  border: 1px solid #0f6e5c;
+}
+
+.btn-revoke {
+  background: #fff;
+  color: #e64340;
+  border: 1px solid #e64340;
+}
+
+.btn-secondary:disabled,
+.btn-revoke:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

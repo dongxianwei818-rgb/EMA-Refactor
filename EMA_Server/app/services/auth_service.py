@@ -7,12 +7,8 @@ from sqlalchemy.orm import Session
 from app.dependencies import create_access_token
 from app.models import models_for
 from app.services.consent_service import user_has_consent
+from app.services.user_identity import auth_principal, user_principal
 from app.services.wechat_session import jscode2session
-
-
-def user_principal(user) -> str:
-    """JWT sub / 冗余标识：web 用 user_name，其余用 openid。"""
-    return getattr(user, "user_name", None) or getattr(user, "openid", "") or ""
 
 
 def get_active_user_by_openid(db: Session, openid: str, client_type: str | None = None):
@@ -116,7 +112,7 @@ async def wx_login(db: Session, code: str, client_type: str) -> dict:
         "client_type": client_type,
         "research_id": user.research_id,
         "study_status": user.study_status,
-        "has_consent": user_has_consent(db, user.id),
+        "has_consent": user_has_consent(db, user.id, user=user),
         "has_baseline": has_baseline,
     }
 
@@ -149,9 +145,10 @@ def password_login(db: Session, user_name: str, psw: str, client_type: str = "we
     has_baseline = (
         db.query(m.BaselineProfile).filter(m.BaselineProfile.user_id == user.id).count() > 0
     )
-    token = create_access_token(user.user_name, user.id, client_type)
+    # JWT sub 仍用登录名；响应 openid 字段对 web 统一为 users.id
+    token = create_access_token(auth_principal(user), user.id, client_type)
     return {
-        "openid": user.user_name,
+        "openid": user_principal(user),
         "user_name": user.user_name,
         "token": token,
         "user_id": user.id,
@@ -159,6 +156,6 @@ def password_login(db: Session, user_name: str, psw: str, client_type: str = "we
         "role": user.role,
         "research_id": user.research_id,
         "study_status": user.study_status,
-        "has_consent": user_has_consent(db, user.id),
+        "has_consent": user_has_consent(db, user.id, user=user),
         "has_baseline": has_baseline,
     }

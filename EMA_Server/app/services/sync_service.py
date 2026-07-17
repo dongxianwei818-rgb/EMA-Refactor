@@ -5,15 +5,8 @@ from datetime import datetime
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.orm import Session
 
-from app.models import (
-    BaselineProfile,
-    ConsentAuthorizationLog,
-    SkipEvent,
-    StepsRecord,
-    Submission,
-    User,
-    VideoDoneEvent,
-)
+from app.client_types import get_current_client_type
+from app.models import models_for
 from app.services.baseline_fields import baseline_to_profile_dict
 from app.services.behavior_service import sync_behavior_batch
 from app.services.checkin_service import sync_checkin_sessions_from_state
@@ -22,6 +15,7 @@ from app.services.daily_task_service import upsert_daily_tasks_batch
 from app.services.datetime_fields import datetime_to_ms, ms_to_datetime, parse_client_at
 from app.services.session_fields import parse_task_date
 from app.services.submission_service import upsert_submission
+from app.services.user_identity import auth_principal, user_principal
 from app.services.user_service import ResearchIdConflictError, create_participation_user, save_baseline
 
 
@@ -48,6 +42,7 @@ def _sync_submissions(db: Session, user_id: int, submissions: list) -> int:
 
 
 def _sync_skips(db: Session, user_id: int, media_type: str, skips: list) -> int:
+    SkipEvent = models_for(db=db).SkipEvent
     count = 0
     for item in skips or []:
         client_at = parse_client_at(item)
@@ -66,6 +61,7 @@ def _sync_skips(db: Session, user_id: int, media_type: str, skips: list) -> int:
 
 
 def _sync_steps(db: Session, user_id: int, steps_history: list, steps_baseline: int | None) -> int:
+    StepsRecord = models_for(db=db).StepsRecord
     count = 0
     for item in steps_history or []:
         task_date = item.get("date")
@@ -94,6 +90,7 @@ def _sync_steps(db: Session, user_id: int, steps_history: list, steps_baseline: 
 
 
 def _sync_video_dates(db: Session, user_id: int, video_dates: list) -> int:
+    VideoDoneEvent = models_for(db=db).VideoDoneEvent
     count = 0
     for ts in video_dates or []:
         client_at = ms_to_datetime(ts) or datetime.now()
@@ -102,7 +99,7 @@ def _sync_video_dates(db: Session, user_id: int, video_dates: list) -> int:
     return count
 
 
-def push_local_data(db: Session, user: User, payload: dict) -> dict:
+def push_local_data(db: Session, user, payload: dict) -> dict:
     stats = {
         "submissions": 0,
         "daily_tasks": 0,
@@ -113,6 +110,8 @@ def push_local_data(db: Session, user: User, payload: dict) -> dict:
     }
     effective_user = user
     participation_recreated = False
+    m = models_for(user=user, db=db)
+    ConsentAuthorizationLog = m.ConsentAuthorizationLog
 
     if payload.get("login_count") is not None:
         effective_user.login_count = max(effective_user.login_count, int(payload["login_count"]))
@@ -123,6 +122,8 @@ def push_local_data(db: Session, user: User, payload: dict) -> dict:
             if effective_user.study_status == "exited":
                 effective_user = create_participation_user(db, effective_user)
                 participation_recreated = True
+                m = models_for(user=effective_user, db=db)
+                ConsentAuthorizationLog = m.ConsentAuthorizationLog
             exists = (
                 db.query(ConsentAuthorizationLog)
                 .filter(
@@ -180,14 +181,19 @@ def push_local_data(db: Session, user: User, payload: dict) -> dict:
         from app.dependencies import create_access_token
 
         stats["user_id"] = effective_user.id
-        stats["token"] = create_access_token(effective_user.openid, effective_user.id)
+        stats["token"] = create_access_token(
+            auth_principal(effective_user), effective_user.id, get_current_client_type()
+        )
         stats["participation_recreated"] = True
     return stats
 
 
-def pull_user_data(db: Session, user: User) -> dict:
+def pull_user_data(db: Session, user) -> dict:
+    m = models_for(user=user, db=db)
+    BaselineProfile = m.BaselineProfile
+    Submission = m.Submission
     baseline = db.query(BaselineProfile).filter(BaselineProfile.user_id == user.id).first()
-    consent = latest_accept_consent(db, user.id)
+    consent = latest_accept_consent(db, user.id, user=user)
     submissions = (
         db.query(Submission)
         .filter(Submission.user_id == user.id)
@@ -196,7 +202,7 @@ def pull_user_data(db: Session, user: User) -> dict:
         .all()
     )
     return {
-        "openid": user.openid,
+        "openid": user_principal(user),
         "research_id": user.research_id,
         "login_count": user.login_count,
         "study_status": user.study_status,

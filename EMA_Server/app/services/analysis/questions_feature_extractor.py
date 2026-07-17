@@ -9,13 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import (
-    BaselineProfile,
-    EmaDiary,
-    EmaQuestion,
-    QuestionsFeature,
-    TextFeature,
-)
+from app.models import models_for
 from app.services.analysis.questions_metrics import (
     METRIC_LABELS,
     NEGATIVE_THOUGHT_MAP,
@@ -60,13 +54,17 @@ class QuestionsFeatureExtractor:
         self.history_days = history_days if history_days is not None else settings.questions_ema_history_days
         self.alpha = 2.0 / (self.ema_span + 1.0)
 
+    @property
+    def m(self):
+        return models_for(db=self.db)
+
     # ------------------------------------------------------------------ public
 
-    def process_questionnaire(self, record: EmaQuestion) -> QuestionsFeature:
+    def process_questionnaire(self, record) -> Any:
         features = self.extract_from_questionnaire(record)
         return self.save_features(record, features)
 
-    def extract_from_questionnaire(self, record: EmaQuestion) -> dict[str, Any]:
+    def extract_from_questionnaire(self, record) -> dict[str, Any]:
         daily_series = self._build_daily_series(record.user_id, up_to_date=record.task_date)
         target_idx = self._index_of_date(daily_series, record.task_date)
         if target_idx < 0:
@@ -90,7 +88,8 @@ class QuestionsFeatureExtractor:
             "extracted_at": format_datetime(datetime.now()),
         }
 
-    def save_features(self, record: EmaQuestion, features: dict[str, Any]) -> QuestionsFeature:
+    def save_features(self, record, features: dict[str, Any]) -> Any:
+        QuestionsFeature = self.m.QuestionsFeature
         row = (
             self.db.query(QuestionsFeature)
             .filter(
@@ -118,13 +117,16 @@ class QuestionsFeatureExtractor:
         self.db.refresh(row)
         return row
 
-    def process_questionnaire_by_id(self, question_id: int) -> QuestionsFeature | None:
+    def process_questionnaire_by_id(self, question_id: int) -> Any | None:
+        EmaQuestion = self.m.EmaQuestion
         record = self.db.query(EmaQuestion).filter(EmaQuestion.id == question_id).first()
         if not record:
             return None
         return self.process_questionnaire(record)
 
     def process_pending_questionnaires(self, user_id: int | None = None, limit: int = 100) -> int:
+        EmaQuestion = self.m.EmaQuestion
+        QuestionsFeature = self.m.QuestionsFeature
         q = self.db.query(EmaQuestion).order_by(EmaQuestion.id.desc())
         if user_id is not None:
             q = q.filter(EmaQuestion.user_id == user_id)
@@ -153,6 +155,7 @@ class QuestionsFeatureExtractor:
 
     def recompute_user_from_date(self, user_id: int, from_date: str | None = None) -> int:
         """从指定日期起按时间顺序重算该用户全部 questions_feature（用于补历史）。"""
+        EmaQuestion = self.m.EmaQuestion
         q = self.db.query(EmaQuestion).filter(EmaQuestion.user_id == user_id)
         if from_date:
             q = q.filter(EmaQuestion.task_date >= from_date)
@@ -170,12 +173,13 @@ class QuestionsFeatureExtractor:
 
     def _build_daily_series(self, user_id: int, up_to_date: str | None = None) -> list[dict[str, Any]]:
         """按 task_date 聚合为日序列；同日多条取各量表均值。"""
+        EmaQuestion = self.m.EmaQuestion
         q = self.db.query(EmaQuestion).filter(EmaQuestion.user_id == user_id)
         if up_to_date:
             q = q.filter(EmaQuestion.task_date <= up_to_date)
         records = q.order_by(EmaQuestion.task_date.asc(), EmaQuestion.answered_at.asc()).all()
 
-        by_date: dict[str, list[EmaQuestion]] = {}
+        by_date: dict[str, list[Any]] = {}
         for rec in records:
             by_date.setdefault(rec.task_date, []).append(rec)
 
@@ -209,7 +213,7 @@ class QuestionsFeatureExtractor:
         return -1
 
     @staticmethod
-    def _raw_from_record(record: EmaQuestion) -> dict[str, Any]:
+    def _raw_from_record(record) -> dict[str, Any]:
         return {
             "mood": record.mood,
             "stress": record.stress,
@@ -282,7 +286,7 @@ class QuestionsFeatureExtractor:
 
     def _analyze_negative_thoughts(
         self,
-        record: EmaQuestion,
+        record,
         daily_series: list[dict[str, Any]],
         target_idx: int,
     ) -> dict[str, Any]:
@@ -308,7 +312,10 @@ class QuestionsFeatureExtractor:
 
     # ------------------------------------------------------------------ context
 
-    def _load_context(self, record: EmaQuestion) -> dict[str, Any]:
+    def _load_context(self, record) -> dict[str, Any]:
+        BaselineProfile = self.m.BaselineProfile
+        TextFeature = self.m.TextFeature
+        EmaDiary = self.m.EmaDiary
         baseline = (
             self.db.query(BaselineProfile).filter(BaselineProfile.user_id == record.user_id).first()
         )
@@ -368,8 +375,8 @@ class QuestionsFeatureExtractor:
 
     def _questionnaire_text_consistency(
         self,
-        record: EmaQuestion,
-        text_feature: TextFeature | None,
+        record,
+        text_feature: Any | None,
     ) -> float | None:
         if not text_feature or not text_feature.features:
             return None

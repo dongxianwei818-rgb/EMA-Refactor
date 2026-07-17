@@ -1,23 +1,13 @@
 """小程序端 FastAPI 路由。"""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db
-from app.models import (
-    BehaviorFeature,
-    EmaDiary,
-    EmaQuestion,
-    EmaStep,
-    EmaVideo,
-    EmaVoice,
-    QuestionsFeature,
-    StepFeature,
-    TextFeature,
-    User,
-    VideoFeature,
-    VoiceFeature,
-)
+from app.models import models_for
+from app.services.user_identity import user_principal
 from app.schemas import (
     ApiResponse,
     BaselineSubmitRequest,
@@ -133,7 +123,7 @@ def auth_password_login(body: PasswordLoginRequest):
     summary="记录登录",
     description="小程序进入前台时写入登录流水，并递增用户登录次数。",
 )
-def auth_login_log(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def auth_login_log(user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
     data = record_user_login(db, user)
     return ApiResponse(data=data, message="已记录登录信息")
 
@@ -144,7 +134,7 @@ def auth_login_log(user: User = Depends(get_current_user), db: Session = Depends
     summary="记录登出",
     description="小程序进入后台时更新最近一条登录记录的 logout_at。",
 )
-def auth_logout_log(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def auth_logout_log(user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
     data = record_user_logout(db, user)
     message = "已记录登出信息" if data.get("updated") else "无未结束的登录会话"
     return ApiResponse(data=data, message=message)
@@ -158,7 +148,7 @@ def auth_logout_log(user: User = Depends(get_current_user), db: Session = Depend
 )
 def behavior_track_log(
     body: BehaviorTrackRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     data = record_behavior_event(
@@ -183,7 +173,7 @@ def behavior_track_log(
 )
 def checkin_session_start(
     body: CheckinSessionStartRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -208,7 +198,7 @@ def checkin_session_start(
 )
 def checkin_session_complete(
     body: CheckinSessionCompleteRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -231,12 +221,10 @@ def checkin_session_complete(
     summary="当前用户信息",
     description="获取当前登录用户的基本资料、研究状态及是否已完成知情同意与基线测评。",
 )
-def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    from app.models import models_for
-
-    m = models_for()
+def get_me(user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
+    m = models_for(user=user, db=db)
     BaselineProfile = m.BaselineProfile
-    principal = getattr(user, "user_name", None) or getattr(user, "openid", "") or ""
+    principal = user_principal(user)
     has_baseline = db.query(BaselineProfile).filter(BaselineProfile.user_id == user.id).count() > 0
     return ApiResponse(
         data=UserProfileResponse(
@@ -247,7 +235,7 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
             research_id=user.research_id,
             login_count=user.login_count,
             study_status=user.study_status,
-            has_consent=user_has_consent(db, user.id),
+            has_consent=user_has_consent(db, user.id, user=user),
             has_baseline=has_baseline,
         )
     )
@@ -259,8 +247,8 @@ def get_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)
     summary="查询知情同意状态",
     description="从 consent_authorization_logs 读取当前用户最新授权流水，判断是否已同意。",
 )
-def consent_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    data = get_consent_status(db, user.id)
+def consent_status(user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
+    data = get_consent_status(db, user.id, user=user)
     return ApiResponse(data=ConsentStatusResponse(**data))
 
 
@@ -272,7 +260,7 @@ def consent_status(user: User = Depends(get_current_user), db: Session = Depends
 )
 def consent_accept_log(
     body: ConsentAuthorizationLogRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -292,7 +280,7 @@ def consent_accept_log(
 )
 def consent_revoke_log(
     body: ConsentAuthorizationLogRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -312,7 +300,7 @@ def consent_revoke_log(
 )
 def consent_exit_log(
     body: ConsentAuthorizationLogRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -330,7 +318,7 @@ def consent_exit_log(
 )
 def accept_consent(
     body: ConsentAuthorizationLogRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     data = record_consent_authorization(db, user, "accept", body.event_info, parse_client_at(body.model_dump()))
@@ -345,7 +333,7 @@ def accept_consent(
 )
 def revoke_consent(
     body: ConsentAuthorizationLogRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     data = record_consent_authorization(db, user, "revoke", body.event_info, parse_client_at(body.model_dump()))
@@ -360,7 +348,7 @@ def revoke_consent(
 )
 def baseline_submit_log(
     body: BaselineSubmitRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -380,7 +368,7 @@ def baseline_submit_log(
 )
 def submit_baseline(
     body: dict,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -400,7 +388,7 @@ def submit_baseline(
 )
 def ema_submission_submit(
     body: EmaSubmissionSubmitRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -418,7 +406,7 @@ def ema_submission_submit(
 )
 def ema_questionnaire_submit_log(
     body: EmaQuestionnaireSubmitRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -436,7 +424,7 @@ def ema_questionnaire_submit_log(
 )
 def ema_diary_submit_log(
     body: EmaDiarySubmitRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -454,9 +442,10 @@ def ema_diary_submit_log(
 )
 def analysis_text_extract_diary(
     diary_id: int,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    EmaDiary = models_for(user=user, db=db).EmaDiary
     diary = (
         db.query(EmaDiary)
         .filter(EmaDiary.id == diary_id, EmaDiary.user_id == user.id)
@@ -491,9 +480,10 @@ def analysis_text_extract_diary(
 def analysis_text_features_list(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    TextFeature = models_for(user=user, db=db).TextFeature
     q = db.query(TextFeature).filter(TextFeature.user_id == user.id)
     if task_date:
         q = q.filter(TextFeature.task_date == task_date)
@@ -523,7 +513,7 @@ def analysis_text_features_list(
 )
 def analysis_text_extract_pending(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = TextFeatureExtractor(db).process_pending_diaries(user_id=user.id, limit=limit)
@@ -538,9 +528,10 @@ def analysis_text_extract_pending(
 )
 def analysis_questions_extract(
     question_id: int,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    EmaQuestion = models_for(user=user, db=db).EmaQuestion
     record = (
         db.query(EmaQuestion)
         .filter(EmaQuestion.id == question_id, EmaQuestion.user_id == user.id)
@@ -575,9 +566,10 @@ def analysis_questions_extract(
 def analysis_questions_features_list(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    QuestionsFeature = models_for(user=user, db=db).QuestionsFeature
     q = db.query(QuestionsFeature).filter(QuestionsFeature.user_id == user.id)
     if task_date:
         q = q.filter(QuestionsFeature.task_date == task_date)
@@ -607,7 +599,7 @@ def analysis_questions_features_list(
 )
 def analysis_questions_extract_pending(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = QuestionsFeatureExtractor(db).process_pending_questionnaires(user_id=user.id, limit=limit)
@@ -622,7 +614,7 @@ def analysis_questions_extract_pending(
 )
 def analysis_questions_recompute(
     from_date: str | None = Query(default=None, description="起始日期 YYYY-MM-DD，留空则全量重算"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = QuestionsFeatureExtractor(db).recompute_user_from_date(user.id, from_date)
@@ -637,9 +629,10 @@ def analysis_questions_recompute(
 )
 def analysis_voice_extract(
     voice_id: int,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    EmaVoice = models_for(user=user, db=db).EmaVoice
     voice = (
         db.query(EmaVoice)
         .filter(EmaVoice.id == voice_id, EmaVoice.user_id == user.id)
@@ -674,9 +667,10 @@ def analysis_voice_extract(
 def analysis_voice_features_list(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    VoiceFeature = models_for(user=user, db=db).VoiceFeature
     q = db.query(VoiceFeature).filter(VoiceFeature.user_id == user.id)
     if task_date:
         q = q.filter(VoiceFeature.task_date == task_date)
@@ -706,7 +700,7 @@ def analysis_voice_features_list(
 )
 def analysis_voice_extract_pending(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = VoiceFeatureExtractor(db).process_pending_voices(user_id=user.id, limit=limit)
@@ -721,9 +715,10 @@ def analysis_voice_extract_pending(
 )
 def analysis_video_extract(
     video_id: int,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    EmaVideo = models_for(user=user, db=db).EmaVideo
     video = (
         db.query(EmaVideo)
         .filter(EmaVideo.id == video_id, EmaVideo.user_id == user.id)
@@ -758,9 +753,10 @@ def analysis_video_extract(
 def analysis_video_features_list(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    VideoFeature = models_for(user=user, db=db).VideoFeature
     q = db.query(VideoFeature).filter(VideoFeature.user_id == user.id)
     if task_date:
         q = q.filter(VideoFeature.task_date == task_date)
@@ -790,7 +786,7 @@ def analysis_video_features_list(
 )
 def analysis_video_extract_pending(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = VideoFeatureExtractor(db).process_pending_videos(user_id=user.id, limit=limit)
@@ -805,9 +801,10 @@ def analysis_video_extract_pending(
 )
 def analysis_step_extract(
     step_id: int,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    EmaStep = models_for(user=user, db=db).EmaStep
     record = (
         db.query(EmaStep)
         .filter(EmaStep.id == step_id, EmaStep.user_id == user.id)
@@ -842,9 +839,10 @@ def analysis_step_extract(
 def analysis_step_features_list(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    StepFeature = models_for(user=user, db=db).StepFeature
     q = db.query(StepFeature).filter(StepFeature.user_id == user.id)
     if task_date:
         q = q.filter(StepFeature.task_date == task_date)
@@ -874,7 +872,7 @@ def analysis_step_features_list(
 )
 def analysis_step_extract_pending(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = StepFeatureExtractor(db).process_pending_steps(user_id=user.id, limit=limit)
@@ -890,7 +888,7 @@ def analysis_step_extract_pending(
 def analysis_behavior_extract(
     task_date: str = Query(..., description="任务日期 YYYY-MM-DD"),
     session_id: int = Query(default=1, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -918,9 +916,10 @@ def analysis_behavior_extract(
 def analysis_behavior_features_list(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    BehaviorFeature = models_for(user=user, db=db).BehaviorFeature
     q = db.query(BehaviorFeature).filter(BehaviorFeature.user_id == user.id)
     if task_date:
         q = q.filter(BehaviorFeature.task_date == task_date)
@@ -951,7 +950,7 @@ def analysis_behavior_features_list(
 )
 def analysis_behavior_extract_pending(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     count = BehaviorFeatureExtractor(db).process_pending_sessions(user_id=user.id, limit=limit)
@@ -966,7 +965,7 @@ def analysis_behavior_extract_pending(
 )
 def ema_step_submit_log(
     body: EmaStepSubmitRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -990,7 +989,7 @@ async def ema_voice_submit_log(
     recorded_at_ms: str | None = Form(default=None, description="录音时间（毫秒，兼容旧版）"),
     session_id: int = Form(1, description="当日第几次打卡会话"),
     task_date: str | None = Form(default=None, description="任务日期 YYYY-MM-DD"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     sid = session_id if session_id >= 1 else 1
@@ -1022,7 +1021,7 @@ async def ema_video_submit_log(
     recorded_at_ms: str | None = Form(default=None, description="录制时间（毫秒，兼容旧版）"),
     session_id: int = Form(1, description="当日第几次打卡会话"),
     task_date: str | None = Form(default=None, description="任务日期 YYYY-MM-DD"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     sid = session_id if session_id >= 1 else 1
@@ -1048,7 +1047,7 @@ async def ema_video_submit_log(
 )
 def study_exit(
     body: ConsentAuthorizationLogRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     data = exit_study(db, user, body.event_info, parse_client_at(body.model_dump()))
@@ -1063,7 +1062,7 @@ def study_exit(
 )
 def sync_push(
     body: SyncPushRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -1079,7 +1078,7 @@ def sync_push(
     summary="拉取服务端数据",
     description="从服务端拉取用户基线、知情同意、提交记录等数据，供小程序恢复本地状态。",
 )
-def sync_pull(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def sync_pull(user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
     return ApiResponse(data=pull_user_data(db, user))
 
 
@@ -1089,7 +1088,7 @@ def sync_pull(user: User = Depends(get_current_user), db: Session = Depends(get_
     summary="获取风险评估",
     description="基于基线、近期 EMA 与行为数据计算当前风险等级、预测与预警（不写入快照）。",
 )
-def risk_assessment(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def risk_assessment(user: Any = Depends(get_current_user), db: Session = Depends(get_db)):
     return ApiResponse(data=compute_risk_assessment(db, user, save_snapshot=False))
 
 
@@ -1101,7 +1100,7 @@ def risk_assessment(user: User = Depends(get_current_user), db: Session = Depend
 )
 def risk_snapshot_save(
     body: RiskSnapshotSaveRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     data = save_checkin_risk_snapshot(
@@ -1123,7 +1122,7 @@ def risk_snapshot_save(
 def daily_tasks_get(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD，默认当天"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号，默认 1"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     td = task_date or parse_task_date({}, None)
@@ -1139,7 +1138,7 @@ def daily_tasks_get(
 )
 def trends_overview(
     days: int = Query(default=7, ge=1, le=30, description="统计天数，1–30"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     safe_days = max(1, min(days, 30))
@@ -1155,7 +1154,7 @@ def trends_overview(
 def feedback_get(
     task_date: str | None = Query(default=None, description="任务日期 YYYY-MM-DD"),
     session_id: int | None = Query(default=None, ge=1, description="打卡会话编号"),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return ApiResponse(data=get_feedback(db, user, task_date, session_id))
@@ -1179,7 +1178,7 @@ def get_resources():
 )
 async def decrypt_werun(
     body: WeRunDecryptRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
@@ -1198,7 +1197,7 @@ async def decrypt_werun(
 )
 def chat_messages_get(
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return ApiResponse(data=list_chat_messages(db, user, limit=limit))
@@ -1211,7 +1210,7 @@ def chat_messages_get(
 )
 def chat_send(
     body: ChatSendRequest,
-    user: User = Depends(get_current_user),
+    user: Any = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:

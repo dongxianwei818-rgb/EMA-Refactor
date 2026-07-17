@@ -293,6 +293,28 @@ API_BASE_URL: "http://127.0.0.1:8000/api/v1";
 
 ---
 
+### 8. Web 端（EMA_Web）
+
+依据 `EMA需求说明/需求说明_web.docx` 实现的 **Vue 3 + Element Plus** 参与者系统，数据写入 **`ema_web`**。
+
+| 能力 | 说明 |
+|------|------|
+| 登录 | 用户名/密码；写 `user_login_logs` + `behavior_logs` |
+| 角色 | 管理员（`role=0`）跳过知情同意/基线；普通用户走完整入组 |
+| 入组 | 知情同意 → 基线（绑定 `research_id`，仅一次）→ 首页 |
+| 打卡 | 问卷 / 日记 / 语音 / 视频 / 手动步数；会话与风险快照 |
+| 行为 | `tracker.js` 上报页面与任务事件 |
+| 管理 | `/api/web/v1/users` 用户 CRUD |
+
+详细模块、路由与验收路径见 **[EMA_Web/README.md](EMA_Web/README.md)**。
+
+```bash
+cd EMA_Web && npm install && npm run dev
+# http://127.0.0.1:5174
+```
+
+---
+
 #### 用户与研究编号规则
 
 - 每个微信用户以 **openid** 作为唯一 `user_id` 关联所有数据。

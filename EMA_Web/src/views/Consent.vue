@@ -1,50 +1,53 @@
 <template>
-  <div class="consent-page">
-    <h1 class="section-title">知情同意与隐私授权</h1>
+  <div class="consent-shell">
+    <OnboardingHeader title="知情同意与隐私授权" />
+    <div class="consent-page">
+      <h1 class="section-title">知情同意与隐私授权</h1>
 
-    <div v-if="isReview && hasAnswered" class="review-banner">
-      <div class="review-status">✓ 您已完成知情同意</div>
-      <div class="review-time">同意时间：{{ consentTimeStr }}</div>
-      <div class="review-hint">以下为当时阅读的内容，仅供查阅。</div>
-    </div>
-
-    <div
-      v-if="isReview && !hasAnswered"
-      class="review-banner review-banner--empty"
-    >
-      您尚未完成知情同意与隐私授权。
-    </div>
-
-    <div class="consent-scroll">
-      <div v-for="item in sections" :key="item.title" class="card consent-card">
-        <div class="sec-title">{{ item.title }}</div>
-        <p class="sec-body">{{ item.content }}</p>
+      <div v-if="isReview && hasAnswered" class="review-banner">
+        <div class="review-status">✓ 您已完成知情同意</div>
+        <div class="review-time">同意时间：{{ consentTimeStr }}</div>
+        <div class="review-hint">以下为当时阅读的内容，仅供查阅。</div>
       </div>
-    </div>
 
-    <div v-if="!isReview" class="footer">
-      <label class="agree-row">
-        <input type="checkbox" :checked="agreed" @change="toggleAgree" />
-        <span>我已阅读并同意参与本研究</span>
-      </label>
-      <button
-        class="btn-primary"
-        :disabled="!agreed || submitting"
-        @click="onConfirm"
+      <div
+        v-if="isReview && !hasAnswered"
+        class="review-banner review-banner--empty"
       >
-        {{ submitting ? "提交中…" : "同意并继续" }}
-      </button>
-      <p v-if="error" class="error">{{ error }}</p>
-      <p v-if="toast" class="toast">{{ toast }}</p>
-    </div>
+        您尚未完成知情同意与隐私授权。
+      </div>
 
-    <div v-else class="footer">
-      <label class="agree-row agree-row--done">
-        <input type="checkbox" checked disabled />
-        <span>我已阅读并同意参与本研究</span>
-      </label>
-      <button class="btn-secondary" @click="onBack">返回</button>
-      <p v-if="error" class="error">{{ error }}</p>
+      <div class="consent-scroll">
+        <div v-for="item in sections" :key="item.title" class="card consent-card">
+          <div class="sec-title">{{ item.title }}</div>
+          <p class="sec-body">{{ item.content }}</p>
+        </div>
+      </div>
+
+      <div v-if="!isReview" class="footer">
+        <label class="agree-row">
+          <input type="checkbox" :checked="agreed" @change="toggleAgree" />
+          <span>我已阅读并同意参与本研究</span>
+        </label>
+        <button
+          class="btn-primary"
+          :disabled="!agreed || submitting"
+          @click="onConfirm"
+        >
+          {{ submitting ? "提交中…" : "同意并继续" }}
+        </button>
+        <p v-if="error" class="error">{{ error }}</p>
+        <p v-if="toast" class="toast">{{ toast }}</p>
+      </div>
+
+      <div v-else class="footer">
+        <label class="agree-row agree-row--done">
+          <input type="checkbox" checked disabled />
+          <span>我已阅读并同意参与本研究</span>
+        </label>
+        <button class="btn-secondary" @click="onBack">返回</button>
+        <p v-if="error" class="error">{{ error }}</p>
+      </div>
     </div>
   </div>
 </template>
@@ -52,6 +55,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import OnboardingHeader from "../components/OnboardingHeader.vue";
 import { CONSENT_SECTIONS } from "../constants/consent";
 import { fetchConsentStatus, recordAcceptLog } from "../api/consent";
 import { ensureLogin } from "../api/auth";
@@ -62,6 +66,7 @@ import {
   hasConsent,
 } from "../utils/consentState";
 import { formatConsentTime } from "../utils/datetime";
+import { markOnboardingSynced } from "../utils/onboardingGate";
 
 const route = useRoute();
 const router = useRouter();
@@ -120,17 +125,16 @@ async function initOnboardingMode() {
     return;
   }
 
-  // 已同意则进入主流程（Web 暂无基线页，对齐小程序「已同意 → 继续」）
   try {
     const data = await fetchConsentStatus();
     applyConsentFromServer(data);
     if (data.has_consent) {
-      router.replace("/home");
+      router.replace("/baseline");
       return;
     }
   } catch {
     if (hasConsent()) {
-      router.replace("/home");
+      router.replace("/baseline");
     }
   }
 }
@@ -151,17 +155,18 @@ function onConfirm() {
         status: "accept",
         at: data.at || at,
       });
+      markOnboardingSynced();
     })
     .catch((err) => {
       console.warn("记录知情同意失败", err);
       applyConsentFromServer({ has_consent: true, status: "accept", at });
+      markOnboardingSynced();
     });
 
-  // Web 暂未实现基线页，同意后回首页
   setTimeout(() => {
     submitting.value = false;
-    router.replace("/home");
-  }, 1000);
+    router.replace("/baseline");
+  }, 800);
 }
 
 function onBack() {
@@ -179,12 +184,18 @@ watch(isReview, initByMode);
 </script>
 
 <style scoped>
+.consent-shell {
+  min-height: 100vh;
+  background: #eef3f1;
+}
+
 .consent-page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 72px);
+  min-height: calc(100vh - 56px);
   max-width: 720px;
   margin: 0 auto;
+  padding: 16px;
 }
 
 .section-title {
@@ -283,7 +294,6 @@ watch(isReview, initByMode);
 .btn-primary,
 .btn-secondary {
   width: 100%;
-  border: none;
   border-radius: 10px;
   padding: 12px 16px;
   font-size: 15px;
@@ -292,6 +302,7 @@ watch(isReview, initByMode);
 }
 
 .btn-primary {
+  border: none;
   background: #07c160;
   color: #fff;
 }
@@ -302,8 +313,9 @@ watch(isReview, initByMode);
 }
 
 .btn-secondary {
-  background: #eef2f6;
-  color: #1c2430;
+  background: #fff;
+  color: #07c160;
+  border: 1px solid #07c160;
 }
 
 .error {

@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.orm import Session
 
-from app.models import BehaviorLog, BehaviorMeta
+from app.models import models_for
 from app.services.datetime_fields import datetime_to_ms, format_datetime, parse_client_at
 
 
@@ -17,6 +17,7 @@ def upsert_behavior_log(
     *,
     commit: bool = False,
 ) -> None:
+    BehaviorLog = models_for(db=db).BehaviorLog
     client_at = parse_client_at(item)
     stmt = mysql_insert(BehaviorLog).values(
         user_id=user_id,
@@ -44,6 +45,7 @@ def upsert_behavior_meta(
     *,
     commit: bool = False,
 ) -> None:
+    BehaviorMeta = models_for(db=db).BehaviorMeta
     now = datetime.now()
     row = db.query(BehaviorMeta).filter(BehaviorMeta.user_id == user_id).first()
     if row:

@@ -9,9 +9,16 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import EmaVoice, User
-from app.services.datetime_fields import datetime_to_ms, format_datetime, parse_client_at
+from app.models import models_for
+from app.services.datetime_fields import datetime_to_ms, format_datetime
 from app.services.session_fields import parse_task_date
+from app.services.analysis.async_extract import schedule_voice_features
+from app.services.user_identity import (
+    client_type_from_user,
+    identity_row_kwargs,
+    record_principal,
+    user_principal,
+)
 
 settings = get_settings()
 VOICE_MIN_SEC = 5
@@ -19,20 +26,20 @@ VOICE_MAX_SEC = 60
 CHUNK_SIZE = 64 * 1024
 
 
-def _safe_openid(openid: str) -> str:
-    return re.sub(r"[^\w\-]", "_", openid)[:48]
+def _safe_token(token: str) -> str:
+    return re.sub(r"[^\w\-]", "_", token)[:48]
 
 
-def build_voice_filename(user: User, recorded_at: datetime) -> str:
+def build_voice_filename(user, recorded_at: datetime) -> str:
     at_ms = datetime_to_ms(recorded_at) or 0
-    return f"voice_{user.id}_{_safe_openid(user.openid)}_{at_ms}.aac"
+    return f"voice_{user.id}_{_safe_token(user_principal(user))}_{at_ms}.aac"
 
 
-def _to_response(record: EmaVoice, file_path: str | None = None) -> dict[str, Any]:
+def _to_response(record, file_path: str | None = None) -> dict[str, Any]:
     return {
         "id": record.id,
         "user_id": record.user_id,
-        "openid": record.openid,
+        "openid": record_principal(record),
         "session_id": record.session_id,
         "task_date": record.task_date,
         "recorded_at": format_datetime(record.recorded_at),
@@ -56,15 +63,16 @@ async def save_voice_stream(upload: UploadFile, dest: Path) -> None:
 
 def submit_ema_voice_skip(
     db: Session,
-    user: User,
+    user,
     recorded_at: datetime | None = None,
     session_id: int = 1,
     task_date: str | None = None,
 ) -> dict[str, Any]:
     at = recorded_at or datetime.now()
+    EmaVoice = models_for(user=user).EmaVoice
     record = EmaVoice(
         user_id=user.id,
-        openid=user.openid,
+        **identity_row_kwargs(user),
         session_id=session_id,
         task_date=parse_task_date({"task_date": task_date}, at),
         recorded_at=at,
@@ -85,19 +93,18 @@ def submit_ema_voice_skip(
         record.session_id,
         at,
         {"skip": True},
+        user=user,
     )
-    voice_feature = _try_extract_voice_features(db, record)
+    schedule_voice_features(client_type_from_user(user), record.id)
     result = _to_response(record)
     result["daily_tasks"] = daily_tasks
-    if voice_feature:
-        result["voice_feature_id"] = voice_feature.id
-        result["voice_feature_status"] = voice_feature.status
+    result["voice_feature_status"] = "pending"
     return result
 
 
 async def submit_ema_voice(
     db: Session,
-    user: User,
+    user,
     upload: UploadFile,
     duration_sec: int,
     recorded_at: datetime | None = None,
@@ -120,9 +127,10 @@ async def submit_ema_voice(
         dest_path.unlink(missing_ok=True)
         raise ValueError("录音文件为空")
 
+    EmaVoice = models_for(user=user).EmaVoice
     record = EmaVoice(
         user_id=user.id,
-        openid=user.openid,
+        **identity_row_kwargs(user),
         session_id=session_id,
         task_date=parse_task_date({"task_date": task_date}, at),
         recorded_at=at,
@@ -147,23 +155,10 @@ async def submit_ema_voice(
             "skip": False,
             "file_name": file_name,
         },
+        user=user,
     )
-    voice_feature = _try_extract_voice_features(db, record)
+    schedule_voice_features(client_type_from_user(user), record.id)
     result = _to_response(record, str(dest_path))
     result["daily_tasks"] = daily_tasks
-    if voice_feature:
-        result["voice_feature_id"] = voice_feature.id
-        result["voice_feature_status"] = voice_feature.status
+    result["voice_feature_status"] = "pending"
     return result
-
-
-def _try_extract_voice_features(db: Session, record: EmaVoice):
-    try:
-        from app.services.analysis import extract_voice_features_from_voice_row
-
-        return extract_voice_features_from_voice_row(db, record)
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).exception("语音特性提取失败 voice_id=%s", record.id)
-        return None

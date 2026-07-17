@@ -9,9 +9,16 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import EmaVideo, User
+from app.models import models_for
 from app.services.datetime_fields import datetime_to_ms, format_datetime
 from app.services.session_fields import parse_task_date
+from app.services.analysis.async_extract import schedule_video_features
+from app.services.user_identity import (
+    client_type_from_user,
+    identity_row_kwargs,
+    record_principal,
+    user_principal,
+)
 
 settings = get_settings()
 VIDEO_MIN_SEC = 5
@@ -19,20 +26,20 @@ VIDEO_MAX_SEC = 60
 CHUNK_SIZE = 64 * 1024
 
 
-def _safe_openid(openid: str) -> str:
-    return re.sub(r"[^\w\-]", "_", openid)[:48]
+def _safe_token(token: str) -> str:
+    return re.sub(r"[^\w\-]", "_", token)[:48]
 
 
-def build_video_filename(user: User, recorded_at: datetime) -> str:
+def build_video_filename(user, recorded_at: datetime) -> str:
     at_ms = datetime_to_ms(recorded_at) or 0
-    return f"video_{user.id}_{_safe_openid(user.openid)}_{at_ms}.mp4"
+    return f"video_{user.id}_{_safe_token(user_principal(user))}_{at_ms}.mp4"
 
 
-def _to_response(record: EmaVideo, file_path: str | None = None) -> dict[str, Any]:
+def _to_response(record, file_path: str | None = None) -> dict[str, Any]:
     return {
         "id": record.id,
         "user_id": record.user_id,
-        "openid": record.openid,
+        "openid": record_principal(record),
         "session_id": record.session_id,
         "task_date": record.task_date,
         "recorded_at": format_datetime(record.recorded_at),
@@ -56,15 +63,16 @@ async def save_video_stream(upload: UploadFile, dest: Path) -> None:
 
 def submit_ema_video_skip(
     db: Session,
-    user: User,
+    user,
     recorded_at: datetime | None = None,
     session_id: int = 1,
     task_date: str | None = None,
 ) -> dict[str, Any]:
     at = recorded_at or datetime.now()
+    EmaVideo = models_for(user=user).EmaVideo
     record = EmaVideo(
         user_id=user.id,
-        openid=user.openid,
+        **identity_row_kwargs(user),
         session_id=session_id,
         task_date=parse_task_date({"task_date": task_date}, at),
         recorded_at=at,
@@ -85,19 +93,18 @@ def submit_ema_video_skip(
         record.session_id,
         at,
         {"skip": True},
+        user=user,
     )
+    schedule_video_features(client_type_from_user(user), record.id)
     result = _to_response(record)
     result["daily_tasks"] = daily_tasks
-    video_feature = _try_extract_video_features(db, record)
-    if video_feature:
-        result["video_feature_id"] = video_feature.id
-        result["video_feature_status"] = video_feature.status
+    result["video_feature_status"] = "pending"
     return result
 
 
 async def submit_ema_video(
     db: Session,
-    user: User,
+    user,
     upload: UploadFile,
     duration_sec: int,
     recorded_at: datetime | None = None,
@@ -120,9 +127,10 @@ async def submit_ema_video(
         dest_path.unlink(missing_ok=True)
         raise ValueError("视频文件为空")
 
+    EmaVideo = models_for(user=user).EmaVideo
     record = EmaVideo(
         user_id=user.id,
-        openid=user.openid,
+        **identity_row_kwargs(user),
         session_id=session_id,
         task_date=parse_task_date({"task_date": task_date}, at),
         recorded_at=at,
@@ -147,25 +155,10 @@ async def submit_ema_video(
             "skip": False,
             "file_name": file_name,
         },
+        user=user,
     )
-    video_feature = _try_extract_video_features(db, record)
+    schedule_video_features(client_type_from_user(user), record.id)
     result = _to_response(record, str(dest_path))
     result["daily_tasks"] = daily_tasks
-    if video_feature:
-        result["video_feature_id"] = video_feature.id
-        result["video_feature_status"] = video_feature.status
+    result["video_feature_status"] = "pending"
     return result
-
-
-def _try_extract_video_features(db: Session, record: EmaVideo):
-    video_id = record.id
-    try:
-        from app.services.analysis import extract_video_features_from_video_row
-
-        return extract_video_features_from_video_row(db, record)
-    except Exception:
-        import logging
-
-        db.rollback()
-        logging.getLogger(__name__).exception("视频特性提取失败 video_id=%s", video_id)
-        return None

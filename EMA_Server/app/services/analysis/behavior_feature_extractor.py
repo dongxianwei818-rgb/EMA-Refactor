@@ -9,20 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import (
-    BaselineProfile,
-    BehaviorFeature,
-    BehaviorLog,
-    BehaviorMeta,
-    CheckinSession,
-    EmaDiary,
-    EmaQuestion,
-    EmaVideo,
-    EmaVoice,
-    QuestionsFeature,
-    SkipEvent,
-    StepFeature,
-)
+from app.models import models_for
 from app.services.analysis.behavior_metrics import (
     analyze_checkin_timing,
     analyze_compliance,
@@ -65,13 +52,21 @@ class BehaviorFeatureExtractor:
         self.late_hour_start = late_hour_start if late_hour_start is not None else settings.behavior_late_hour_start
         self.late_hour_end = late_hour_end if late_hour_end is not None else settings.behavior_late_hour_end
 
+    @property
+    def m(self):
+        return models_for(db=self.db)
+
     # ------------------------------------------------------------------ public
 
-    def process_session(self, user_id: int, task_date: str, session_id: int = 1) -> BehaviorFeature:
+    def process_session(self, user_id: int, task_date: str, session_id: int = 1) -> Any:
         features = self.extract_for_session(user_id, task_date, session_id)
         return self.save_features(user_id, task_date, session_id, features)
 
     def extract_for_session(self, user_id: int, task_date: str, session_id: int = 1) -> dict[str, Any]:
+        BehaviorMeta = self.m.BehaviorMeta
+        CheckinSession = self.m.CheckinSession
+        EmaVoice = self.m.EmaVoice
+        EmaVideo = self.m.EmaVideo
         meta_row = self.db.query(BehaviorMeta).filter(BehaviorMeta.user_id == user_id).first()
         meta = dict(meta_row.meta_data) if meta_row and meta_row.meta_data else {}
 
@@ -169,7 +164,8 @@ class BehaviorFeatureExtractor:
         task_date: str,
         session_id: int,
         features: dict[str, Any],
-    ) -> BehaviorFeature:
+    ) -> Any:
+        BehaviorFeature = self.m.BehaviorFeature
         now = datetime.now()
         row = (
             self.db.query(BehaviorFeature)
@@ -199,6 +195,8 @@ class BehaviorFeatureExtractor:
         return row
 
     def process_pending_sessions(self, user_id: int | None = None, limit: int = 100) -> int:
+        CheckinSession = self.m.CheckinSession
+        BehaviorFeature = self.m.BehaviorFeature
         q = (
             self.db.query(CheckinSession)
             .filter(CheckinSession.completed_at.isnot(None))
@@ -235,7 +233,8 @@ class BehaviorFeatureExtractor:
 
     # ------------------------------------------------------------------ helpers
 
-    def _logs_for_date(self, user_id: int, task_date: str) -> list[BehaviorLog]:
+    def _logs_for_date(self, user_id: int, task_date: str) -> list[Any]:
+        BehaviorLog = self.m.BehaviorLog
         start = datetime.combine(parse_task_date(task_date), datetime.min.time())
         end = start + timedelta(days=1)
         return (
@@ -249,7 +248,7 @@ class BehaviorFeatureExtractor:
         )
 
     @staticmethod
-    def _task_durations_from_logs(logs: list[BehaviorLog]) -> list[int]:
+    def _task_durations_from_logs(logs: list[Any]) -> list[int]:
         durations: list[int] = []
         for log in logs:
             if log.action != "task_duration":
@@ -260,6 +259,7 @@ class BehaviorFeatureExtractor:
         return durations
 
     def _has_questionnaire(self, user_id: int, task_date: str) -> bool:
+        EmaQuestion = self.m.EmaQuestion
         return (
             self.db.query(EmaQuestion.id)
             .filter(EmaQuestion.user_id == user_id, EmaQuestion.task_date == task_date)
@@ -268,6 +268,7 @@ class BehaviorFeatureExtractor:
         )
 
     def _skip_count(self, user_id: int, media_type: str) -> int:
+        SkipEvent = self.m.SkipEvent
         return (
             self.db.query(SkipEvent)
             .filter(SkipEvent.user_id == user_id, SkipEvent.media_type == media_type)
@@ -288,6 +289,13 @@ class BehaviorFeatureExtractor:
         return 1 if row else 0
 
     def _load_context(self, user_id: int, task_date: str, session_id: int) -> dict[str, Any]:
+        EmaQuestion = self.m.EmaQuestion
+        EmaDiary = self.m.EmaDiary
+        EmaVoice = self.m.EmaVoice
+        EmaVideo = self.m.EmaVideo
+        QuestionsFeature = self.m.QuestionsFeature
+        StepFeature = self.m.StepFeature
+        BaselineProfile = self.m.BaselineProfile
         q = (
             self.db.query(EmaQuestion)
             .filter(
@@ -398,9 +406,9 @@ class BehaviorFeatureExtractor:
     def _behavior_multimodal_consistency(
         missingness: dict[str, Any],
         skip_rates: dict[str, Any],
-        questionnaire: EmaQuestion | None,
-        questions_feature: QuestionsFeature | None,
-        step_feature: StepFeature | None,
+        questionnaire: Any | None,
+        questions_feature: Any | None,
+        step_feature: Any | None,
     ) -> float | None:
         if not questionnaire and missingness.get("consecutive_missed_days", 0) < 2:
             return None

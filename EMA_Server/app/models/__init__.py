@@ -25,8 +25,18 @@ _PACKAGES: dict[str, ModuleType] = {
 }
 
 
-def models_for(client_type: str | None = None) -> ModuleType:
-    """Return the independent model package for a client_type."""
+def models_for(client_type: str | None = None, user=None, db=None) -> ModuleType:
+    """Return the independent model package for a client_type.
+
+    Prefer ``user`` / ``db`` when available so resolution works inside
+    sync threadpool workers where ContextVar may fall back to default.
+    """
+    if client_type is None and user is not None:
+        from app.services.user_identity import client_type_from_user
+
+        client_type = client_type_from_user(user)
+    if client_type is None and db is not None:
+        client_type = getattr(db, "info", {}).get("client_type")
     return _PACKAGES[validate_client_type(client_type or get_current_client_type())]
 
 

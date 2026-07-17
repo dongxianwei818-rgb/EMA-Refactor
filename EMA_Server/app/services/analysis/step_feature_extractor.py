@@ -9,13 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import (
-    BaselineProfile,
-    EmaQuestion,
-    EmaStep,
-    QuestionsFeature,
-    StepFeature,
-)
+from app.models import models_for
 from app.services.analysis.step_metrics import (
     activity_level_label,
     build_daily_step_map,
@@ -63,13 +57,17 @@ class StepFeatureExtractor:
             rhythm_window_days if rhythm_window_days is not None else settings.step_rhythm_window_days
         )
 
+    @property
+    def m(self):
+        return models_for(db=self.db)
+
     # ------------------------------------------------------------------ public
 
-    def process_step(self, record: EmaStep) -> StepFeature:
+    def process_step(self, record) -> Any:
         features = self.extract_from_step(record)
         return self.save_features(record, features)
 
-    def extract_from_step(self, record: EmaStep) -> dict[str, Any]:
+    def extract_from_step(self, record) -> dict[str, Any]:
         step_map = self._load_user_step_history(record.user_id, up_to_date=record.task_date)
         step_map[record.task_date] = max(step_map.get(record.task_date, 0), int(record.steps))
         today_steps = step_map[record.task_date]
@@ -116,7 +114,8 @@ class StepFeatureExtractor:
             "extracted_at": format_datetime(datetime.now()),
         }
 
-    def save_features(self, record: EmaStep, features: dict[str, Any]) -> StepFeature:
+    def save_features(self, record, features: dict[str, Any]) -> Any:
+        StepFeature = self.m.StepFeature
         row = (
             self.db.query(StepFeature)
             .filter(
@@ -144,13 +143,16 @@ class StepFeatureExtractor:
         self.db.refresh(row)
         return row
 
-    def process_step_by_id(self, step_id: int) -> StepFeature | None:
+    def process_step_by_id(self, step_id: int) -> Any | None:
+        EmaStep = self.m.EmaStep
         record = self.db.query(EmaStep).filter(EmaStep.id == step_id).first()
         if not record:
             return None
         return self.process_step(record)
 
     def process_pending_steps(self, user_id: int | None = None, limit: int = 100) -> int:
+        EmaStep = self.m.EmaStep
+        StepFeature = self.m.StepFeature
         q = self.db.query(EmaStep).order_by(EmaStep.id.desc())
         if user_id is not None:
             q = q.filter(EmaStep.user_id == user_id)
@@ -180,6 +182,7 @@ class StepFeatureExtractor:
     # ------------------------------------------------------------------ data
 
     def _load_user_step_history(self, user_id: int, up_to_date: str) -> dict[str, int]:
+        EmaStep = self.m.EmaStep
         records = (
             self.db.query(EmaStep)
             .filter(EmaStep.user_id == user_id, EmaStep.task_date <= up_to_date)
@@ -188,7 +191,10 @@ class StepFeatureExtractor:
         )
         return build_daily_step_map(records)
 
-    def _load_context(self, record: EmaStep) -> dict[str, Any]:
+    def _load_context(self, record) -> dict[str, Any]:
+        EmaQuestion = self.m.EmaQuestion
+        QuestionsFeature = self.m.QuestionsFeature
+        BaselineProfile = self.m.BaselineProfile
         questionnaire = (
             self.db.query(EmaQuestion)
             .filter(
@@ -262,7 +268,7 @@ class StepFeatureExtractor:
 
     @staticmethod
     def _steps_questionnaire_consistency(
-        questionnaire: EmaQuestion | None,
+        questionnaire: Any | None,
         baseline_dev: dict[str, Any],
         consecutive_low: dict[str, Any],
     ) -> float | None:

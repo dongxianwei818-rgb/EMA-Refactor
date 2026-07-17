@@ -5,9 +5,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import CheckinDayState, CheckinSession, User
+from app.models import models_for
+from app.services.analysis.async_extract import schedule_behavior_features
 from app.services.daily_task_service import init_daily_task_snapshot
 from app.services.datetime_fields import datetime_to_ms, format_datetime, ms_to_datetime
+from app.services.user_identity import client_type_from_user
 
 
 def _upsert_checkin_day_state(
@@ -17,6 +19,8 @@ def _upsert_checkin_day_state(
     session_id: int,
     state_data: dict[str, Any],
 ) -> None:
+    m = models_for(db=db)
+    CheckinDayState = m.CheckinDayState
     now = datetime.now()
     row = (
         db.query(CheckinDayState)
@@ -41,7 +45,7 @@ def _upsert_checkin_day_state(
 
 def start_checkin_session(
     db: Session,
-    user: User,
+    user,
     *,
     task_date: str,
     session_id: int,
@@ -53,6 +57,8 @@ def start_checkin_session(
     if not task_date:
         raise ValueError("task_date 不能为空")
 
+    m = models_for(user=user, db=db)
+    CheckinSession = m.CheckinSession
     row = (
         db.query(CheckinSession)
         .filter(
@@ -98,13 +104,15 @@ def start_checkin_session(
 
 def complete_checkin_session(
     db: Session,
-    user: User,
+    user,
     *,
     task_date: str,
     session_id: int,
     completed_at: datetime,
     checkin_day: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    m = models_for(user=user, db=db)
+    CheckinSession = m.CheckinSession
     row = (
         db.query(CheckinSession)
         .filter(
@@ -122,31 +130,18 @@ def complete_checkin_session(
         _upsert_checkin_day_state(db, user.id, task_date, session_id, checkin_day)
     db.commit()
 
-    try:
-        from app.services.analysis import extract_behavior_features_for_session
+    schedule_behavior_features(
+        client_type_from_user(user), user.id, task_date, session_id
+    )
 
-        behavior_feature = extract_behavior_features_for_session(
-            db, user.id, task_date, session_id
-        )
-    except Exception:
-        import logging
-
-        logging.getLogger(__name__).exception(
-            "行为特性提取失败 user=%s date=%s session=%s", user.id, task_date, session_id
-        )
-        behavior_feature = None
-
-    result = {
+    return {
         "user_id": user.id,
         "task_date": task_date,
         "session_id": session_id,
         "completed_at": format_datetime(completed_at),
         "at": datetime_to_ms(completed_at),
+        "behavior_feature_status": "pending",
     }
-    if behavior_feature:
-        result["behavior_feature_id"] = behavior_feature.id
-        result["behavior_feature_status"] = behavior_feature.status
-    return result
 
 
 def sync_checkin_sessions_from_state(
@@ -156,6 +151,8 @@ def sync_checkin_sessions_from_state(
 ) -> int:
     if not checkin_day:
         return 0
+    m = models_for(db=db)
+    CheckinSession = m.CheckinSession
     now = datetime.now()
     task_date = checkin_day.get("date") or ""
     session_id = checkin_day.get("sessionId") or 1

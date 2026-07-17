@@ -2,7 +2,6 @@
 
 from typing import Any
 
-from app.models import BaselineProfile
 from app.services.datetime_fields import datetime_to_ms
 
 # 小程序 form 字段 id -> 数据库列名（researchId 使用 research_id 列）
@@ -56,16 +55,16 @@ def parse_baseline_profile(profile: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def apply_baseline_fields(target: BaselineProfile, fields: dict[str, Any]) -> None:
+def apply_baseline_fields(target: Any, fields: dict[str, Any]) -> None:
     for column, value in fields.items():
         setattr(target, column, value)
 
 
-def baseline_completed_at_ms(baseline: BaselineProfile) -> int:
+def baseline_completed_at_ms(baseline: Any) -> int:
     return datetime_to_ms(baseline.completed_at) or 0
 
 
-def baseline_to_profile_dict(baseline: BaselineProfile) -> dict[str, Any]:
+def baseline_to_profile_dict(baseline: Any) -> dict[str, Any]:
     """转为小程序/风险评估使用的 profile 字典（camelCase 键）。"""
     result: dict[str, Any] = {"at": baseline_completed_at_ms(baseline)}
     for column, form_key in BASELINE_COLUMN_TO_FORM.items():

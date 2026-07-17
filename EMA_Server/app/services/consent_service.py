@@ -10,7 +10,10 @@ from app.services.datetime_fields import datetime_to_ms, format_datetime
 
 
 def _user_principal(user) -> str:
-    return getattr(user, "user_name", None) or getattr(user, "openid", "") or ""
+    """知情同意日志冗余字段：web 存 users.id，其余存 openid。"""
+    from app.services.user_identity import user_principal
+
+    return user_principal(user)
 
 
 def record_consent_authorization(
@@ -23,7 +26,7 @@ def record_consent_authorization(
     if status not in ("accept", "revoke", "exit"):
         raise ValueError("status 必须为 accept、revoke 或 exit")
 
-    m = models_for()
+    m = models_for(user=user, db=db)
     ConsentAuthorizationLog = m.ConsentAuthorizationLog
     at = client_at or datetime.now()
     info = event_info or {}
@@ -70,9 +73,9 @@ def record_consent_authorization(
     }
 
 
-def get_consent_status(db: Session, user_id: int) -> dict[str, Any]:
+def get_consent_status(db: Session, user_id: int, *, user=None) -> dict[str, Any]:
     """从 consent_authorization_logs 读取当前授权状态。"""
-    ConsentAuthorizationLog = models_for().ConsentAuthorizationLog
+    ConsentAuthorizationLog = models_for(user=user, db=db).ConsentAuthorizationLog
     latest = (
         db.query(ConsentAuthorizationLog)
         .filter(ConsentAuthorizationLog.user_id == user_id)
@@ -96,12 +99,12 @@ def get_consent_status(db: Session, user_id: int) -> dict[str, Any]:
     }
 
 
-def user_has_consent(db: Session, user_id: int) -> bool:
-    return bool(get_consent_status(db, user_id).get("has_consent"))
+def user_has_consent(db: Session, user_id: int, *, user=None) -> bool:
+    return bool(get_consent_status(db, user_id, user=user).get("has_consent"))
 
 
-def latest_accept_consent(db: Session, user_id: int):
-    ConsentAuthorizationLog = models_for().ConsentAuthorizationLog
+def latest_accept_consent(db: Session, user_id: int, *, user=None):
+    ConsentAuthorizationLog = models_for(user=user, db=db).ConsentAuthorizationLog
     return (
         db.query(ConsentAuthorizationLog)
         .filter(

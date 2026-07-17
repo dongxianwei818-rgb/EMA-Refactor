@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import ChatMessage, User
+from app.models import models_for
 from app.services.feedback_service import CAMPUS_RESOURCES, get_feedback
 from app.services.risk_service import compute_risk_assessment
 
@@ -16,7 +16,8 @@ DISCLAIMER = (
 )
 
 
-def list_messages(db: Session, user: User, limit: int = 50) -> dict[str, Any]:
+def list_messages(db: Session, user, limit: int = 50) -> dict[str, Any]:
+    ChatMessage = models_for(user=user, db=db).ChatMessage
     rows = (
         db.query(ChatMessage)
         .filter(ChatMessage.user_id == user.id)
@@ -42,7 +43,8 @@ def list_messages(db: Session, user: User, limit: int = 50) -> dict[str, Any]:
     return {"items": items, "disclaimer": DISCLAIMER}
 
 
-def send_user_message(db: Session, user: User, content: str) -> dict[str, Any]:
+def send_user_message(db: Session, user, content: str) -> dict[str, Any]:
+    ChatMessage = models_for(user=user, db=db).ChatMessage
     text = (content or "").strip()
     if not text:
         raise ValueError("消息不能为空")
@@ -71,7 +73,7 @@ def send_user_message(db: Session, user: User, content: str) -> dict[str, Any]:
     }
 
 
-def _generate_assistant_reply(db: Session, user: User, text: str) -> tuple[str, dict[str, Any]]:
+def _generate_assistant_reply(db: Session, user, text: str) -> tuple[str, dict[str, Any]]:
     lower = text.lower()
     feedback = get_feedback(db, user)
     risk = compute_risk_assessment(db, user)
@@ -116,7 +118,7 @@ def _generate_assistant_reply(db: Session, user: User, text: str) -> tuple[str, 
     return msg, meta
 
 
-def _to_dict(row: ChatMessage) -> dict[str, Any]:
+def _to_dict(row: Any) -> dict[str, Any]:
     return {
         "id": row.id,
         "role": row.role,

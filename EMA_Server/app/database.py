@@ -70,7 +70,10 @@ def get_session_factory(client_type: str) -> sessionmaker:
 
 
 def create_session(client_type: str) -> Session:
-    return get_session_factory(client_type)()
+    client_type = validate_client_type(client_type)
+    session = get_session_factory(client_type)()
+    session.info["client_type"] = client_type
+    return session
 
 
 def iter_engines() -> list[tuple[str, Engine]]:

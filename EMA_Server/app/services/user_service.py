@@ -4,8 +4,9 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models import BaselineProfile, ConsentRecord, User
+from app.models import models_for
 from app.services.baseline_fields import apply_baseline_fields, parse_baseline_profile
+from app.services.user_identity import is_web_user, user_principal
 
 
 class ResearchIdConflictError(Exception):
@@ -13,36 +14,54 @@ class ResearchIdConflictError(Exception):
 
 
 def assert_research_id_available(
-    db: Session, research_id: str, user_id: int, openid: str
+    db: Session,
+    research_id: str,
+    user_id: int,
+    identity: str | None = None,
+    *,
+    user=None,
 ) -> None:
-    """仅阻止其他 openid 的 active 参与记录占用该 research_id。"""
-    other = (
-        db.query(User)
-        .filter(
-            User.research_id == research_id,
-            User.id != user_id,
-            User.openid != openid,
-            User.study_status == "active",
-        )
-        .first()
+    """阻止其他用户的 active 参与记录占用该 research_id。
+
+    wechat/app：同一 openid 的多轮参与可复用编号（排除 identity）。
+    web：以 users.id 区分，不依赖 openid。
+    """
+    User = models_for(user=user).User
+    q = db.query(User).filter(
+        User.research_id == research_id,
+        User.id != user_id,
+        User.study_status == "active",
     )
+    if hasattr(User, "openid") and identity:
+        q = q.filter(User.openid != identity)
+    other = q.first()
     if other:
         raise ResearchIdConflictError("该研究编号已被其他用户绑定")
 
 
-def create_participation_user(db: Session, source: User) -> User:
+def create_participation_user(db: Session, source) -> object:
     """新建一条 users 参与记录（不修改历史记录）。"""
-    user = User(
-        openid=source.openid,
-        study_status="active",
-        session_key=source.session_key,
-    )
+    User = models_for(user=source).User
+    if is_web_user(source):
+        user = User(
+            user_name=source.user_name,
+            psw=getattr(source, "psw", None),
+            role=getattr(source, "role", 1),
+            study_status="active",
+            session_key=getattr(source, "session_key", None),
+        )
+    else:
+        user = User(
+            openid=source.openid,
+            study_status="active",
+            session_key=source.session_key,
+        )
     db.add(user)
     db.flush()
     return user
 
 
-def resolve_baseline_user(db: Session, user: User, research_id: str) -> User:
+def resolve_baseline_user(db: Session, user, research_id: str):
     """退出后重新登录已新建参与记录；绑定 research_id 时直接更新当前记录，不再重复新建。"""
     if (
         user.study_status == "active"
@@ -61,15 +80,18 @@ def resolve_baseline_user(db: Session, user: User, research_id: str) -> User:
     return user
 
 
-def record_consent(db: Session, user: User, action: str, client_at: datetime) -> None:
+def record_consent(db: Session, user, action: str, client_at: datetime) -> None:
     """遗留：仅用于 exit 等非 accept/revoke 场景。"""
+    ConsentRecord = models_for(user=user).ConsentRecord
     db.add(ConsentRecord(user_id=user.id, action=action, client_at=client_at))
     db.commit()
 
 
-def save_baseline(db: Session, user: User, research_id: str, profile: dict) -> tuple[BaselineProfile, User]:
+def save_baseline(db: Session, user, research_id: str, profile: dict) -> tuple:
+    BaselineProfile = models_for(user=user).BaselineProfile
     target = resolve_baseline_user(db, user, research_id)
-    assert_research_id_available(db, research_id, target.id, user.openid)
+    identity = None if is_web_user(user) else user_principal(user)
+    assert_research_id_available(db, research_id, target.id, identity, user=user)
 
     fields = parse_baseline_profile(profile)
     fields["research_id"] = research_id
@@ -94,7 +116,7 @@ def save_baseline(db: Session, user: User, research_id: str, profile: dict) -> t
 
 def exit_study(
     db: Session,
-    user: User,
+    user,
     event_info: dict | None = None,
     client_at: datetime | None = None,
 ) -> dict:

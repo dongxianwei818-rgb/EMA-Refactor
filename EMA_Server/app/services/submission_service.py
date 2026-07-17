@@ -6,7 +6,8 @@ from typing import Any
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.orm import Session
 
-from app.models import Submission, User
+from app.models import models_for
+from app.client_types import set_current_client_type
 from app.services.datetime_fields import parse_client_at
 from app.services.ema_diary_service import submit_ema_diary
 from app.services.ema_questionnaire_service import submit_ema_questionnaire
@@ -15,6 +16,7 @@ from app.services.ema_video_service import submit_ema_video_skip
 from app.services.daily_task_service import apply_step_to_daily_tasks
 from app.services.ema_voice_service import submit_ema_voice_skip
 from app.services.session_fields import parse_session_id, parse_task_date
+from app.services.user_identity import client_type_from_user
 
 VALID_SUBMISSION_TYPES = frozenset({"questionnaire", "diary", "voice", "video", "steps"})
 
@@ -29,7 +31,9 @@ def upsert_submission(
     payload: dict[str, Any] | None = None,
     *,
     commit: bool = True,
+    user=None,
 ) -> None:
+    Submission = models_for(user=user).Submission
     stmt = mysql_insert(Submission).values(
         user_id=user_id,
         submission_type=submission_type,
@@ -52,9 +56,19 @@ def record_submission_for_step(
     session_id: int,
     client_at: datetime,
     payload: dict[str, Any] | None = None,
+    *,
+    user=None,
 ) -> None:
     upsert_submission(
-        db, user_id, submission_type, task_date, session_id, client_at, payload, commit=True
+        db,
+        user_id,
+        submission_type,
+        task_date,
+        session_id,
+        client_at,
+        payload,
+        commit=True,
+        user=user,
     )
 
 
@@ -66,16 +80,27 @@ def finalize_ema_step(
     session_id: int,
     client_at: datetime,
     payload: dict[str, Any] | None = None,
+    *,
+    user=None,
 ) -> dict[str, Any]:
     upsert_submission(
-        db, user_id, step_type, task_date, session_id, client_at, payload, commit=False
+        db,
+        user_id,
+        step_type,
+        task_date,
+        session_id,
+        client_at,
+        payload,
+        commit=False,
+        user=user,
     )
     return apply_step_to_daily_tasks(
-        db, user_id, task_date, session_id, step_type, payload, client_at
+        db, user_id, task_date, session_id, step_type, payload, client_at, user=user
     )
 
 
-def submit_ema_submission(db: Session, user: User, body: dict[str, Any]) -> dict[str, Any]:
+def submit_ema_submission(db: Session, user, body: dict[str, Any]) -> dict[str, Any]:
+    set_current_client_type(client_type_from_user(user))
     step_type = (body.get("type") or "").strip()
     if step_type not in VALID_SUBMISSION_TYPES:
         raise ValueError(f"type 须为 {', '.join(sorted(VALID_SUBMISSION_TYPES))}")
@@ -152,7 +177,7 @@ def submit_ema_submission(db: Session, user: User, body: dict[str, Any]) -> dict
         raise ValueError(f"不支持的 type: {step_type}")
 
     daily_tasks = finalize_ema_step(
-        db, user.id, step_type, task_date, session_id, client_at, sub_payload
+        db, user.id, step_type, task_date, session_id, client_at, sub_payload, user=user
     )
 
     return {

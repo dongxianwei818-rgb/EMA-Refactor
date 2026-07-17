@@ -1,5 +1,7 @@
 import axios from 'axios'
 import http from './http'
+import { trackEvent, flushPendingBehavior } from '../utils/tracker'
+import { invalidateOnboardingGate } from '../utils/onboardingGate'
 
 const TOKEN_KEY = 'ema_chat_token'
 const OPENID_KEY = 'ema_chat_openid'
@@ -42,6 +44,7 @@ export function clearAuth() {
   localStorage.removeItem(USER_ID_KEY)
   localStorage.removeItem(USER_NAME_KEY)
   localStorage.removeItem(ROLE_KEY)
+  invalidateOnboardingGate()
 }
 
 function persistLogin(data) {
@@ -77,7 +80,11 @@ export async function loginWithPassword(user_name, psw) {
       throw new Error(body.message || '登录失败')
     }
     const data = body.data || body
-    return persistLogin(data)
+    persistLogin(data)
+    invalidateOnboardingGate()
+    trackEvent('auth', 'login', { user_name: data.user_name || user_name }, '/login')
+    flushPendingBehavior()
+    return data
   } catch (err) {
     if (err?.response) {
       const detail = err.response.data?.detail

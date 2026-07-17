@@ -11,21 +11,16 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import (
-    BaselineProfile,
-    EmaDiary,
-    EmaQuestion,
-    EmaVoice,
-    QuestionsFeature,
-    TextFeature,
-    VoiceFeature,
-)
+from app.models import models_for
 from app.services.analysis.text_lexicons import EMOTION_NEGATIVE, EMOTION_POSITIVE, HOPELESSNESS
 from app.services.analysis.voice_acoustic import analyze_acoustic_waveform, load_mono_audio
 from app.services.consent_service import user_has_consent
 from app.services.datetime_fields import format_datetime
 
 logger = logging.getLogger(__name__)
+
+# 进程内缓存 Whisper，避免每次上传都重新加载
+_WHISPER_CACHE: dict[str, Any] = {}
 
 
 class VoiceFeatureExtractor:
@@ -58,15 +53,19 @@ class VoiceFeatureExtractor:
         )
         self._whisper: Any | False | None = None
 
+    @property
+    def m(self):
+        return models_for(db=self.db)
+
     # ------------------------------------------------------------------ public
 
-    def process_voice(self, voice: EmaVoice) -> VoiceFeature:
+    def process_voice(self, voice) -> Any:
         features = self.extract_from_voice(voice)
         row = self.save_features(voice, features)
         self._maybe_delete_audio(voice, features)
         return row
 
-    def extract_from_voice(self, voice: EmaVoice) -> dict[str, Any]:
+    def extract_from_voice(self, voice) -> dict[str, Any]:
         context = self._load_context(voice)
 
         if voice.skip:
@@ -119,7 +118,8 @@ class VoiceFeatureExtractor:
             "extracted_at": format_datetime(datetime.now()),
         }
 
-    def save_features(self, voice: EmaVoice, features: dict[str, Any]) -> VoiceFeature:
+    def save_features(self, voice, features: dict[str, Any]) -> Any:
+        VoiceFeature = self.m.VoiceFeature
         status = "done" if not features.get("error") else "failed"
         if voice.skip:
             status = "done"
@@ -151,13 +151,16 @@ class VoiceFeatureExtractor:
         self.db.refresh(row)
         return row
 
-    def process_voice_by_id(self, voice_id: int) -> VoiceFeature | None:
+    def process_voice_by_id(self, voice_id: int) -> Any | None:
+        EmaVoice = self.m.EmaVoice
         voice = self.db.query(EmaVoice).filter(EmaVoice.id == voice_id).first()
         if not voice:
             return None
         return self.process_voice(voice)
 
     def process_pending_voices(self, user_id: int | None = None, limit: int = 100) -> int:
+        EmaVoice = self.m.EmaVoice
+        VoiceFeature = self.m.VoiceFeature
         q = self.db.query(EmaVoice).filter(EmaVoice.skip.is_(False)).order_by(EmaVoice.id.desc())
         if user_id is not None:
             q = q.filter(EmaVoice.user_id == user_id)
@@ -186,7 +189,7 @@ class VoiceFeatureExtractor:
 
     # ------------------------------------------------------------------ audio
 
-    def _resolve_audio_path(self, voice: EmaVoice) -> Path | None:
+    def _resolve_audio_path(self, voice) -> Path | None:
         if not voice.file_name:
             return None
         return get_settings().voice_files_path / voice.file_name
@@ -222,20 +225,31 @@ class VoiceFeatureExtractor:
     def _get_whisper(self) -> Any | False:
         if self._whisper is not None:
             return self._whisper or False
+        if not self.asr_model:
+            self._whisper = False
+            return False
+        cached = _WHISPER_CACHE.get(self.asr_model)
+        if cached is not None:
+            self._whisper = cached
+            return cached or False
         try:
             from faster_whisper import WhisperModel
 
-            self._whisper = WhisperModel(self.asr_model, device="cpu", compute_type="int8")
+            model = WhisperModel(self.asr_model, device="cpu", compute_type="int8")
+            _WHISPER_CACHE[self.asr_model] = model
+            self._whisper = model
         except Exception:
             logger.info("faster-whisper unavailable (model=%s), ASR disabled", self.asr_model)
+            _WHISPER_CACHE[self.asr_model] = False
             self._whisper = False
         return self._whisper or False
 
-    def _maybe_delete_audio(self, voice: EmaVoice, features: dict[str, Any]) -> None:
+    def _maybe_delete_audio(self, voice, features: dict[str, Any]) -> None:
         if voice.skip or not self.delete_audio_after_extract:
             return
         if self.storage_mode == "research":
             return
+        VoiceFeature = self.m.VoiceFeature
         path = self._resolve_audio_path(voice)
         if path and path.exists():
             try:
@@ -301,7 +315,7 @@ class VoiceFeatureExtractor:
         return "normal"
 
     @staticmethod
-    def _metadata_fallback_acoustic(voice: EmaVoice) -> dict[str, Any]:
+    def _metadata_fallback_acoustic(voice) -> dict[str, Any]:
         dur = float(voice.duration_sec or 0)
         return {
             "duration_sec": dur,
@@ -323,7 +337,12 @@ class VoiceFeatureExtractor:
 
     # ------------------------------------------------------------------ context
 
-    def _load_context(self, voice: EmaVoice) -> dict[str, Any]:
+    def _load_context(self, voice) -> dict[str, Any]:
+        EmaQuestion = self.m.EmaQuestion
+        QuestionsFeature = self.m.QuestionsFeature
+        EmaDiary = self.m.EmaDiary
+        TextFeature = self.m.TextFeature
+        BaselineProfile = self.m.BaselineProfile
         questionnaire = (
             self.db.query(EmaQuestion)
             .filter(
@@ -375,6 +394,7 @@ class VoiceFeatureExtractor:
 
     def _user_historical_baseline(self, user_id: int, current_voice_id: int) -> dict[str, Any]:
         """用户历史语音语速/单调性基线，用于相对偏离判定。"""
+        VoiceFeature = self.m.VoiceFeature
         rows = (
             self.db.query(VoiceFeature)
             .filter(
@@ -447,7 +467,7 @@ class VoiceFeatureExtractor:
     def _voice_questionnaire_consistency(
         acoustic: dict[str, Any],
         semantic: dict[str, Any],
-        questionnaire: EmaQuestion | None,
+        questionnaire: Any | None,
     ) -> float | None:
         if not questionnaire:
             return None
@@ -532,7 +552,7 @@ class VoiceFeatureExtractor:
 
     def _storage_info(
         self,
-        voice: EmaVoice,
+        voice,
         path: Path | None,
         decode_ok: bool,
         context: dict[str, Any],
@@ -548,7 +568,7 @@ class VoiceFeatureExtractor:
         }
 
     @staticmethod
-    def _skipped_features(voice: EmaVoice, context: dict[str, Any]) -> dict[str, Any]:
+    def _skipped_features(voice, context: dict[str, Any]) -> dict[str, Any]:
         return {
             "voice_id": voice.id,
             "skip": True,

@@ -10,16 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import (
-    BaselineProfile,
-    EmaDiary,
-    EmaQuestion,
-    EmaVideo,
-    QuestionsFeature,
-    TextFeature,
-    VideoFeature,
-    VoiceFeature,
-)
+from app.models import models_for
 from app.services.analysis.json_safe import sanitize_for_json
 from app.services.analysis.video_visual import analyze_video_file
 from app.services.consent_service import user_has_consent
@@ -64,15 +55,19 @@ class VideoFeatureExtractor:
             else settings.video_delete_after_extract
         )
 
+    @property
+    def m(self):
+        return models_for(db=self.db)
+
     # ------------------------------------------------------------------ public
 
-    def process_video(self, video: EmaVideo) -> VideoFeature:
+    def process_video(self, video) -> Any:
         features = self.extract_from_video(video)
         row = self.save_features(video, features)
         self._maybe_delete_video(video, features)
         return row
 
-    def extract_from_video(self, video: EmaVideo) -> dict[str, Any]:
+    def extract_from_video(self, video) -> dict[str, Any]:
         context = self._load_context(video)
 
         if video.skip:
@@ -116,7 +111,8 @@ class VideoFeatureExtractor:
             "extracted_at": format_datetime(datetime.now()),
         }
 
-    def save_features(self, video: EmaVideo, features: dict[str, Any]) -> VideoFeature:
+    def save_features(self, video, features: dict[str, Any]) -> Any:
+        VideoFeature = self.m.VideoFeature
         status = "done" if not features.get("error") else "failed"
         if video.skip:
             status = "done"
@@ -149,13 +145,16 @@ class VideoFeatureExtractor:
         self.db.refresh(row)
         return row
 
-    def process_video_by_id(self, video_id: int) -> VideoFeature | None:
+    def process_video_by_id(self, video_id: int) -> Any | None:
+        EmaVideo = self.m.EmaVideo
         video = self.db.query(EmaVideo).filter(EmaVideo.id == video_id).first()
         if not video:
             return None
         return self.process_video(video)
 
     def process_pending_videos(self, user_id: int | None = None, limit: int = 100) -> int:
+        EmaVideo = self.m.EmaVideo
+        VideoFeature = self.m.VideoFeature
         q = self.db.query(EmaVideo).filter(EmaVideo.skip.is_(False)).order_by(EmaVideo.id.desc())
         if user_id is not None:
             q = q.filter(EmaVideo.user_id == user_id)
@@ -184,13 +183,13 @@ class VideoFeatureExtractor:
 
     # ------------------------------------------------------------------ helpers
 
-    def _resolve_video_path(self, video: EmaVideo) -> Path | None:
+    def _resolve_video_path(self, video) -> Path | None:
         if not video.file_name:
             return None
         return get_settings().video_files_path / video.file_name
 
     @staticmethod
-    def _metadata_fallback_visual(video: EmaVideo) -> dict[str, Any]:
+    def _metadata_fallback_visual(video) -> dict[str, Any]:
         dur = float(video.duration_sec or 0)
         return {
             "frames_sampled": 0,
@@ -209,9 +208,10 @@ class VideoFeatureExtractor:
             "fallback": True,
         }
 
-    def _maybe_delete_video(self, video: EmaVideo, features: dict[str, Any]) -> None:
+    def _maybe_delete_video(self, video, features: dict[str, Any]) -> None:
         if video.skip or not self.delete_video_after_extract or self.storage_mode == "research":
             return
+        VideoFeature = self.m.VideoFeature
         path = self._resolve_video_path(video)
         if path and path.exists():
             try:
@@ -236,7 +236,13 @@ class VideoFeatureExtractor:
 
     # ------------------------------------------------------------------ context
 
-    def _load_context(self, video: EmaVideo) -> dict[str, Any]:
+    def _load_context(self, video) -> dict[str, Any]:
+        EmaQuestion = self.m.EmaQuestion
+        QuestionsFeature = self.m.QuestionsFeature
+        VoiceFeature = self.m.VoiceFeature
+        TextFeature = self.m.TextFeature
+        EmaDiary = self.m.EmaDiary
+        BaselineProfile = self.m.BaselineProfile
         questionnaire = (
             self.db.query(EmaQuestion)
             .filter(
@@ -298,6 +304,7 @@ class VideoFeatureExtractor:
         }
 
     def _user_historical_baseline(self, user_id: int, current_video_id: int) -> dict[str, Any]:
+        VideoFeature = self.m.VideoFeature
         rows = (
             self.db.query(VideoFeature)
             .filter(VideoFeature.user_id == user_id, VideoFeature.status == "done")
@@ -365,7 +372,7 @@ class VideoFeatureExtractor:
         }
 
     @staticmethod
-    def _video_voice_consistency(visual: dict[str, Any], voice_feature: VoiceFeature | None) -> float | None:
+    def _video_voice_consistency(visual: dict[str, Any], voice_feature: Any | None) -> float | None:
         if not voice_feature or not voice_feature.features or voice_feature.features.get("skip"):
             return None
         vf = voice_feature.features
@@ -453,7 +460,7 @@ class VideoFeatureExtractor:
             "reasons": reasons,
         }
 
-    def _storage_info(self, video: EmaVideo, path: Path | None, decode_ok: bool) -> dict[str, Any]:
+    def _storage_info(self, video, path: Path | None, decode_ok: bool) -> dict[str, Any]:
         has_consent = user_has_consent(self.db, video.user_id)
         retain_raw = self.storage_mode == "research" and has_consent
         return {
@@ -465,7 +472,7 @@ class VideoFeatureExtractor:
         }
 
     @staticmethod
-    def _skipped_features(video: EmaVideo) -> dict[str, Any]:
+    def _skipped_features(video) -> dict[str, Any]:
         return {
             "video_id": video.id,
             "skip": True,

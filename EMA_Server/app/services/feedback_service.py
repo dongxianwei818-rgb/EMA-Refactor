@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.orm import Session
 
-from app.models import FeedbackRecord, User
+from app.models import models_for
 
 CAMPUS_RESOURCES = [
     {
@@ -38,7 +38,7 @@ def _default_content(level: str = "unknown") -> dict[str, Any]:
     }
 
 
-def _record_to_response(record: FeedbackRecord) -> dict[str, Any]:
+def _record_to_response(record: Any) -> dict[str, Any]:
     content = record.content or {}
     return {
         "hasFeedback": True,
@@ -58,10 +58,11 @@ def _record_to_response(record: FeedbackRecord) -> dict[str, Any]:
 
 def get_feedback(
     db: Session,
-    user: User,
+    user,
     task_date: str | None = None,
     session_id: int | None = None,
 ) -> dict[str, Any]:
+    FeedbackRecord = models_for(user=user, db=db).FeedbackRecord
     query = db.query(FeedbackRecord).filter(FeedbackRecord.user_id == user.id)
     if task_date:
         query = query.filter(FeedbackRecord.task_date == task_date)
@@ -101,6 +102,7 @@ def create_feedback_record(
     if not content:
         raise ValueError("content 不能为空")
 
+    FeedbackRecord = models_for(db=db).FeedbackRecord
     payload = dict(content)
     payload.setdefault("disclaimer", _default_content()["disclaimer"])
     payload.setdefault("resources", CAMPUS_RESOURCES)

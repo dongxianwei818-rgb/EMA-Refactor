@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.orm import Session
 
-from app.models import BaselineProfile, BehaviorMeta, EmaQuestion, EmaStep, RiskSnapshot, SkipEvent, User
+from app.models import models_for
 from app.services.baseline_fields import baseline_to_profile_dict
 from app.services.session_fields import parse_task_date
 
@@ -40,7 +40,10 @@ def _latest_questionnaire(
     user_id: int,
     task_date: str | None = None,
     session_id: int | None = None,
-) -> EmaQuestion | None:
+    *,
+    user=None,
+):
+    EmaQuestion = models_for(user=user, db=db).EmaQuestion
     query = db.query(EmaQuestion).filter(EmaQuestion.user_id == user_id)
     if task_date:
         query = query.filter(EmaQuestion.task_date == task_date)
@@ -49,7 +52,7 @@ def _latest_questionnaire(
     return query.order_by(EmaQuestion.answered_at.desc()).first()
 
 
-def _questionnaire_answers(record: EmaQuestion | None) -> dict | None:
+def _questionnaire_answers(record) -> dict | None:
     if not record:
         return None
     return {
@@ -218,14 +221,15 @@ def _build_forecast(current_score: int, critical: bool, missed_days: int, ema_tr
     }
 
 
-def _recent_ema_trend(db: Session, user_id: int) -> dict:
+def _recent_ema_trend(db: Session, user_id: int, *, user=None) -> dict:
+    EmaQuestion = models_for(user=user, db=db).EmaQuestion
     records = (
         db.query(EmaQuestion)
         .filter(EmaQuestion.user_id == user_id)
         .order_by(EmaQuestion.task_date.asc(), EmaQuestion.answered_at.asc())
         .all()
     )
-    by_date: dict[str, EmaQuestion] = {}
+    by_date = {}
     for record in records:
         by_date[record.task_date] = record
     recent_dates = sorted(by_date.keys())[-7:]
@@ -238,7 +242,8 @@ def _recent_ema_trend(db: Session, user_id: int) -> dict:
     }
 
 
-def _count_missed_days(db: Session, user_id: int) -> int:
+def _count_missed_days(db: Session, user_id: int, *, user=None) -> int:
+    EmaQuestion = models_for(user=user, db=db).EmaQuestion
     missed = 0
     for i in range(1, 15):
         day = (date.today() - timedelta(days=i)).isoformat()
@@ -254,7 +259,8 @@ def _count_missed_days(db: Session, user_id: int) -> int:
     return missed
 
 
-def _behavior_alerts(db: Session, user_id: int, missed_days: int) -> tuple[int, list]:
+def _behavior_alerts(db: Session, user_id: int, missed_days: int, *, user=None) -> tuple[int, list]:
+    SkipEvent = models_for(user=user, db=db).SkipEvent
     score = 0
     alerts = []
     if missed_days >= 3:
@@ -310,15 +316,16 @@ def _empty_assessment() -> dict[str, Any]:
 
 def compute_risk_assessment(
     db: Session,
-    user: User,
+    user,
     *,
     task_date: str | None = None,
     session_id: int | None = None,
     save_snapshot: bool = False,
     computed_at: datetime | None = None,
 ) -> dict[str, Any]:
-    baseline = db.query(BaselineProfile).filter(BaselineProfile.user_id == user.id).first()
-    latest_q = _latest_questionnaire(db, user.id, task_date, session_id)
+    m = models_for(user=user, db=db)
+    baseline = db.query(m.BaselineProfile).filter(m.BaselineProfile.user_id == user.id).first()
+    latest_q = _latest_questionnaire(db, user.id, task_date, session_id, user=user)
     if not baseline and not latest_q:
         return _empty_assessment()
 
@@ -326,14 +333,14 @@ def compute_risk_assessment(
     answers = _questionnaire_answers(latest_q)
     b_score, factors = _score_baseline(profile)
     e_score, ema_factors, ema_alerts = _score_recent_ema(answers)
-    missed_days = _count_missed_days(db, user.id)
-    behavior_score, behavior_alerts = _behavior_alerts(db, user.id, missed_days)
+    missed_days = _count_missed_days(db, user.id, user=user)
+    behavior_score, behavior_alerts = _behavior_alerts(db, user.id, missed_days, user=user)
 
     critical = profile.get("self_harm") == "是" or (answers and answers.get("negative") == "是")
     total = b_score + e_score + behavior_score
     level = _resolve_level(total, critical)
     meta = LEVEL_META[level]
-    ema_trend = _recent_ema_trend(db, user.id)
+    ema_trend = _recent_ema_trend(db, user.id, user=user)
     forecast = _build_forecast(total, critical, missed_days, ema_trend)
     all_alerts = ema_alerts + behavior_alerts
 
@@ -365,7 +372,7 @@ def compute_risk_assessment(
         td = result["task_date"]
         sid = int(result["session_id"])
         at = computed_at or datetime.now()
-        _persist_risk_snapshots(db, user.id, td, sid, result, at)
+        _persist_risk_snapshots(db, user.id, td, sid, result, at, user=user)
 
     return result
 
@@ -377,7 +384,10 @@ def _persist_risk_snapshots(
     session_id: int,
     result: dict[str, Any],
     computed_at: datetime,
+    *,
+    user=None,
 ) -> None:
+    RiskSnapshot = models_for(user=user, db=db).RiskSnapshot
     payloads = [
         ("current", result["current"]),
         ("forecast", result["forecast"]),
@@ -402,7 +412,7 @@ def _persist_risk_snapshots(
 
 def save_checkin_risk_snapshot(
     db: Session,
-    user: User,
+    user,
     task_date: str,
     session_id: int,
     computed_at: datetime | None = None,
@@ -422,7 +432,10 @@ def load_risk_assessment_from_snapshots(
     user_id: int,
     task_date: str | None = None,
     session_id: int | None = None,
+    *,
+    user=None,
 ) -> dict[str, Any] | None:
+    RiskSnapshot = models_for(user=user, db=db).RiskSnapshot
     query = db.query(RiskSnapshot).filter(RiskSnapshot.user_id == user_id)
     if task_date:
         query = query.filter(RiskSnapshot.task_date == task_date)

@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import BehaviorMeta, EmaQuestion, EmaStep, User
+from app.models import models_for
 from app.services.risk_service import compute_risk_assessment, load_risk_assessment_from_snapshots
 
 
@@ -24,13 +24,14 @@ def _format_short_date(date_str: str) -> str:
 
 
 def _questionnaire_days(db: Session, user_id: int, date_keys: list[str]) -> list[dict]:
+    EmaQuestion = models_for(db=db).EmaQuestion
     records = (
         db.query(EmaQuestion)
         .filter(EmaQuestion.user_id == user_id, EmaQuestion.task_date.in_(date_keys))
         .order_by(EmaQuestion.answered_at.desc())
         .all()
     )
-    by_date: dict[str, EmaQuestion] = {}
+    by_date: dict[str, Any] = {}
     for record in records:
         if record.task_date not in by_date:
             by_date[record.task_date] = record
@@ -50,7 +51,7 @@ def _questionnaire_days(db: Session, user_id: int, date_keys: list[str]) -> list
     return days
 
 
-def _questionnaire_answers(record: EmaQuestion | None) -> dict:
+def _questionnaire_answers(record: Any | None) -> dict:
     if not record:
         return {}
     return {
@@ -79,6 +80,7 @@ def _build_metric_trend(days: list[dict], metric_id: str) -> list[dict]:
 
 
 def _steps_history(db: Session, user_id: int, date_keys: list[str]) -> list[dict]:
+    EmaStep = models_for(db=db).EmaStep
     records = (
         db.query(EmaStep)
         .filter(EmaStep.user_id == user_id, EmaStep.task_date.in_(date_keys))
@@ -93,6 +95,7 @@ def _steps_history(db: Session, user_id: int, date_keys: list[str]) -> list[dict
 
 
 def _steps_analytics(db: Session, user_id: int) -> dict[str, Any]:
+    EmaStep = models_for(db=db).EmaStep
     records = (
         db.query(EmaStep)
         .filter(EmaStep.user_id == user_id)
@@ -144,6 +147,9 @@ def _build_steps_trend(hist: list[dict], date_keys: list[str]) -> list[dict]:
 
 
 def _behavior_stats(db: Session, user_id: int) -> dict[str, Any]:
+    m = models_for(db=db)
+    BehaviorMeta = m.BehaviorMeta
+    EmaQuestion = m.EmaQuestion
     meta_row = db.query(BehaviorMeta).filter(BehaviorMeta.user_id == user_id).first()
     meta = meta_row.meta_data if meta_row else {}
 
@@ -175,7 +181,7 @@ def _behavior_stats(db: Session, user_id: int) -> dict[str, Any]:
     }
 
 
-def get_trends_overview(db: Session, user: User, days: int = 7) -> dict[str, Any]:
+def get_trends_overview(db: Session, user, days: int = 7) -> dict[str, Any]:
     date_keys = _date_keys(days)
     questionnaire_days = _questionnaire_days(db, user.id, date_keys)
     metrics = [
@@ -196,7 +202,7 @@ def get_trends_overview(db: Session, user: User, days: int = 7) -> dict[str, Any
     steps_trend = _build_steps_trend(steps_hist, date_keys)
     has_data = any(day["hasData"] for day in questionnaire_days) or any(item["hasData"] for item in steps_trend)
 
-    risk = load_risk_assessment_from_snapshots(db, user.id)
+    risk = load_risk_assessment_from_snapshots(db, user.id, user=user)
     if not risk:
         risk = compute_risk_assessment(db, user, save_snapshot=False)
 

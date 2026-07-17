@@ -2,7 +2,7 @@
   <div class="login-page">
     <el-card class="login-card" shadow="always">
       <div class="login-brand">EMA</div>
-      <p class="login-sub">Web 管理端登录</p>
+      <p class="login-sub">大学生心理健康 EMA 研究系统</p>
 
       <el-form
         ref="formRef"
@@ -57,7 +57,10 @@
 import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Lock, User } from "@element-plus/icons-vue";
-import { loginWithPassword } from "../api/auth";
+import { fetchProfile, isAdmin, loginWithPassword } from "../api/auth";
+import { applyConsentFromServer, hasConsent, setServerProfile } from "../utils/consentState";
+import { ensureBaselineProfile, isResearchBound } from "../utils/ema";
+import { markOnboardingSynced } from "../utils/onboardingGate";
 
 const router = useRouter();
 const route = useRoute();
@@ -75,6 +78,44 @@ const rules = {
   psw: [{ required: true, message: "请输入密码", trigger: "blur" }],
 };
 
+async function resolvePostLoginPath() {
+  if (isAdmin()) return "/trends";
+  const redirect =
+    typeof route.query.redirect === "string" ? route.query.redirect : "";
+  if (redirect && redirect !== "/login") return redirect;
+
+  try {
+    const profile = await fetchProfile();
+    if (profile) {
+      setServerProfile({
+        research_id: profile.research_id,
+        has_baseline: profile.has_baseline,
+        has_consent: profile.has_consent,
+      });
+      if (typeof profile.has_consent === "boolean") {
+        applyConsentFromServer({
+          has_consent: profile.has_consent,
+          status: profile.has_consent ? "accept" : null,
+          at: profile.consent_at || null,
+        });
+      }
+      markOnboardingSynced();
+      if (!profile.has_consent && !hasConsent()) return "/consent";
+      if (!profile.has_baseline && !isResearchBound()) return "/baseline";
+      if (profile.has_baseline || profile.research_id) {
+        await ensureBaselineProfile({ force: true })
+      }
+      return "/home";
+    }
+  } catch {
+    /* fall through to local checks */
+  }
+
+  if (!hasConsent()) return "/consent";
+  if (!isResearchBound()) return "/baseline";
+  return "/home";
+}
+
 async function onSubmit() {
   error.value = "";
   const valid = await formRef.value?.validate().catch(() => false);
@@ -83,9 +124,8 @@ async function onSubmit() {
   loading.value = true;
   try {
     await loginWithPassword(form.user_name.trim(), form.psw);
-    const redirect =
-      typeof route.query.redirect === "string" ? route.query.redirect : "/home";
-    router.replace(redirect || "/home");
+    const path = await resolvePostLoginPath();
+    router.replace(path);
   } catch (e) {
     error.value = e.message || "登录失败";
   } finally {

@@ -219,7 +219,10 @@ class UserProfileResponse(BaseModel):
     """用户资料响应。"""
 
     user_id: int = Field(..., description="参与记录 id")
-    openid: str = Field(default="", description="用户 openid（wechat/app）；web 时同 user_name")
+    openid: str = Field(
+        default="",
+        description="身份冗余字段：wechat/app 为 openid；web 为 users.id 字符串",
+    )
     user_name: Optional[str] = Field(default=None, description="登录用户名（web）")
     role: Optional[int] = Field(default=None, description="0=管理员；1 或空=普通用户（web）")
     research_id: Optional[str] = Field(default=None, description="研究编号")

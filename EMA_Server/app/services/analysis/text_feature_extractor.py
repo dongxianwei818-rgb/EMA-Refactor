@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import BaselineProfile, EmaDiary, EmaQuestion, TextFeature
+from app.models import models_for
 from app.services.analysis.text_lexicons import (
     EMOTION_NEGATIVE,
     EMOTION_POSITIVE,
@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 SENTENCE_SPLIT_RE = re.compile(r"[。！？!?；;\n]+")
 EMBEDDING_DIM = 768
+# 进程内缓存，避免每次提交都重新 Loading weights
+_TRANSFORMER_CACHE: dict[str, Any] = {}
 
 
 class TextFeatureExtractor:
@@ -49,14 +51,18 @@ class TextFeatureExtractor:
         self.embedding_model = embedding_model if embedding_model is not None else settings.text_embedding_model
         self._transformer: Any | False | None = None
 
+    @property
+    def m(self):
+        return models_for(db=self.db)
+
     # ------------------------------------------------------------------ public
 
-    def process_diary(self, diary: EmaDiary) -> TextFeature:
+    def process_diary(self, diary) -> Any:
         """提取特性并 upsert 至 text_features。"""
         features = self.extract_from_diary(diary)
         return self.save_features(diary, features)
 
-    def extract_from_diary(self, diary: EmaDiary) -> dict[str, Any]:
+    def extract_from_diary(self, diary) -> dict[str, Any]:
         text = (diary.text or "").strip()
         context = self._load_context(diary)
 
@@ -83,7 +89,8 @@ class TextFeatureExtractor:
             "extracted_at": format_datetime(datetime.now()),
         }
 
-    def save_features(self, diary: EmaDiary, features: dict[str, Any]) -> TextFeature:
+    def save_features(self, diary, features: dict[str, Any]) -> Any:
+        TextFeature = self.m.TextFeature
         row = (
             self.db.query(TextFeature)
             .filter(
@@ -111,7 +118,8 @@ class TextFeatureExtractor:
         self.db.refresh(row)
         return row
 
-    def process_diary_by_id(self, diary_id: int) -> TextFeature | None:
+    def process_diary_by_id(self, diary_id: int) -> Any | None:
+        EmaDiary = self.m.EmaDiary
         diary = self.db.query(EmaDiary).filter(EmaDiary.id == diary_id).first()
         if not diary:
             return None
@@ -119,6 +127,8 @@ class TextFeatureExtractor:
 
     def process_pending_diaries(self, user_id: int | None = None, limit: int = 100) -> int:
         """批量处理尚未生成 text_features 的日记。"""
+        EmaDiary = self.m.EmaDiary
+        TextFeature = self.m.TextFeature
         q = self.db.query(EmaDiary).order_by(EmaDiary.id.desc())
         if user_id is not None:
             q = q.filter(EmaDiary.user_id == user_id)
@@ -147,7 +157,9 @@ class TextFeatureExtractor:
 
     # ------------------------------------------------------------------ context
 
-    def _load_context(self, diary: EmaDiary) -> dict[str, Any]:
+    def _load_context(self, diary) -> dict[str, Any]:
+        EmaQuestion = self.m.EmaQuestion
+        BaselineProfile = self.m.BaselineProfile
         questionnaire = (
             self.db.query(EmaQuestion)
             .filter(
@@ -362,15 +374,22 @@ class TextFeatureExtractor:
         if not self.embedding_model:
             self._transformer = False
             return False
+        cached = _TRANSFORMER_CACHE.get(self.embedding_model)
+        if cached is not None:
+            self._transformer = cached
+            return cached or False
         try:
             from sentence_transformers import SentenceTransformer
 
-            self._transformer = SentenceTransformer(self.embedding_model)
+            model = SentenceTransformer(self.embedding_model)
+            _TRANSFORMER_CACHE[self.embedding_model] = model
+            self._transformer = model
         except Exception:
             logger.info(
                 "SentenceTransformer unavailable (model=%s), using lexical-proxy",
                 self.embedding_model,
             )
+            _TRANSFORMER_CACHE[self.embedding_model] = False
             self._transformer = False
         return self._transformer or False
 

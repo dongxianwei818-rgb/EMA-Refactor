@@ -87,7 +87,10 @@ def _user_identity_attr(User):
 
 
 def _user_identity_value(user) -> str:
-    return user.user_name if hasattr(user, "user_name") else user.openid
+    """鉴权匹配用：web 登录主体仍为 user_name；业务冗余身份见 user_identity.user_principal。"""
+    from app.services.user_identity import auth_principal
+
+    return auth_principal(user)
 
 
 def get_current_user(

@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import DailyTaskSnapshot
+from app.models import models_for
 from app.services.datetime_fields import datetime_to_ms, format_datetime
 
 DEFAULT_TASKS: dict[str, bool] = {
@@ -56,6 +56,7 @@ def patch_daily_task_snapshot(
     updated_at: datetime | None = None,
     *,
     commit: bool = True,
+    user=None,
 ) -> dict[str, Any]:
     if session_id < 1:
         raise ValueError("session_id 必须 >= 1")
@@ -63,6 +64,7 @@ def patch_daily_task_snapshot(
         raise ValueError("task_date 不能为空")
 
     at = updated_at or datetime.now()
+    DailyTaskSnapshot = models_for(user=user, db=db).DailyTaskSnapshot
     existing = (
         db.query(DailyTaskSnapshot)
         .filter(
@@ -108,8 +110,10 @@ def init_daily_task_snapshot(
     updated_at: datetime | None = None,
     *,
     commit: bool = True,
+    user=None,
 ) -> dict[str, Any]:
     at = updated_at or datetime.now()
+    DailyTaskSnapshot = models_for(user=user, db=db).DailyTaskSnapshot
     existing = (
         db.query(DailyTaskSnapshot)
         .filter(
@@ -158,10 +162,12 @@ def apply_step_to_daily_tasks(
     step_type: str,
     payload: dict[str, Any] | None = None,
     updated_at: datetime | None = None,
+    *,
+    user=None,
 ) -> dict[str, Any]:
     patch = _build_step_patch(step_type, payload)
     return patch_daily_task_snapshot(
-        db, user_id, task_date, session_id, patch, updated_at, commit=True
+        db, user_id, task_date, session_id, patch, updated_at, commit=True, user=user
     )
 
 
@@ -171,6 +177,7 @@ def get_daily_task_snapshot(
     task_date: str,
     session_id: int,
 ) -> dict[str, Any]:
+    DailyTaskSnapshot = models_for(db=db).DailyTaskSnapshot
     row = (
         db.query(DailyTaskSnapshot)
         .filter(

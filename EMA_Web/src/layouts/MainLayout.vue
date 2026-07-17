@@ -5,56 +5,90 @@
         <div class="app-brand">EMA</div>
         <span class="app-subtitle">{{ currentTitle }}</span>
       </div>
-      <nav class="tab-nav">
-        <router-link
-          v-for="tab in visibleTabs"
-          :key="tab.path"
-          :to="tab.path"
-          class="tab-item"
-          active-class="is-active"
+      <div class="header-right">
+        <nav class="tab-nav">
+          <router-link
+            v-for="tab in visibleTabs"
+            :key="tab.path"
+            :to="tab.path"
+            class="tab-item"
+            active-class="is-active"
+          >
+            <el-icon :size="16">
+              <component :is="tab.icon" />
+            </el-icon>
+            <span class="tab-label">{{ tab.label }}</span>
+          </router-link>
+        </nav>
+        <el-button
+          class="logout-btn"
+          text
+          :loading="loggingOut"
+          @click="onLogout"
         >
-          <el-icon :size="16">
-            <component :is="tab.icon" />
-          </el-icon>
-          <span class="tab-label">{{ tab.label }}</span>
-        </router-link>
-      </nav>
+          <el-icon :size="16"><SwitchButton /></el-icon>
+          <span class="logout-label">退出</span>
+        </el-button>
+      </div>
     </el-header>
 
     <el-main class="app-main" :class="{ 'app-main--wide': isWide }">
-      <router-view />
+      <router-view :key="route.fullPath" />
     </el-main>
   </el-container>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import {
-  ChatDotRound,
   Collection,
   Document,
   House,
   Setting,
+  SwitchButton,
   TrendCharts,
   User,
-} from '@element-plus/icons-vue'
-import { isAdmin } from '../api/auth'
+  Warning,
+} from "@element-plus/icons-vue";
+import { isAdmin, logout as logoutSession } from "../api/auth";
 
-const tabs = [
-  { path: '/home', label: '首页', icon: House },
-  { path: '/records', label: '记录', icon: Document },
-  { path: '/trends', label: '趋势', icon: TrendCharts },
-  { path: '/chat', label: '对话', icon: ChatDotRound },
-  { path: '/resources', label: '资源', icon: Collection },
-  { path: '/users', label: '管理', icon: Setting, adminOnly: true },
-  { path: '/my', label: '我的', icon: User },
-]
+/** 普通用户顶栏 */
+const userTabs = [
+  { path: "/home", label: "首页", icon: House },
+  { path: "/records", label: "打卡记录", icon: Document },
+  { path: "/trends", label: "趋势分析", icon: TrendCharts },
+  { path: "/resources", label: "资源分享", icon: Collection },
+  { path: "/my", label: "我的信息", icon: User },
+];
 
-const route = useRoute()
-const visibleTabs = computed(() => tabs.filter((t) => !t.adminOnly || isAdmin()))
-const currentTitle = computed(() => route.meta.title || 'EMA')
-const isWide = computed(() => route.name === 'users')
+/** 管理员顶栏：趋势分析 / 风险分析 / 用户管理 + 退出 */
+const adminTabs = [
+  { path: "/trends", label: "趋势分析", icon: TrendCharts },
+  { path: "/risk", label: "风险分析", icon: Warning },
+  { path: "/users", label: "用户管理", icon: Setting },
+];
+
+const route = useRoute();
+const router = useRouter();
+const loggingOut = ref(false);
+const visibleTabs = computed(() => (isAdmin() ? adminTabs : userTabs));
+const currentTitle = computed(() => {
+  if (isAdmin() && route.name === "trends") return "趋势分析";
+  return route.meta.title || "EMA";
+});
+const isWide = computed(() => route.name === "users");
+
+async function onLogout() {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    await logoutSession();
+  } finally {
+    loggingOut.value = false;
+    router.replace("/login");
+  }
+}
 </script>
 
 <style scoped>
@@ -81,6 +115,13 @@ const isWide = computed(() => route.name === 'users')
   flex-shrink: 0;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .app-brand {
   font-size: 18px;
   font-weight: 700;
@@ -93,13 +134,13 @@ const isWide = computed(() => route.name === 'users')
 }
 
 .app-main {
-  width: min(920px, 100%);
+  width: 100%;
   margin: 0 auto;
   padding: 16px;
 }
 
 .app-main--wide {
-  width: min(1100px, 100%);
+  width: 100%;
 }
 
 .tab-nav {
@@ -119,7 +160,9 @@ const isWide = computed(() => route.name === 'users')
   color: #b8d4cb;
   text-decoration: none;
   font-size: 13px;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
   white-space: nowrap;
 }
 
@@ -135,6 +178,17 @@ const isWide = computed(() => route.name === 'users')
 
 .tab-label {
   line-height: 1;
+}
+
+.logout-btn {
+  flex-shrink: 0;
+  color: #f0c9c9 !important;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.logout-label {
+  margin-left: 4px;
 }
 
 @media (max-width: 720px) {
@@ -153,6 +207,10 @@ const isWide = computed(() => route.name === 'users')
 
   .tab-item .el-icon {
     font-size: 18px;
+  }
+
+  .logout-label {
+    display: none;
   }
 }
 </style>
