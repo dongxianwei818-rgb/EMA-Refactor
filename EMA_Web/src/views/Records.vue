@@ -19,24 +19,53 @@
       <template v-else>
         <div class="session-grid">
           <div class="records-summary">
-            <div class="records-summary-count">
-              <span class="records-summary-label">共</span>
-              <span class="records-summary-count-number">{{
-                sessions.length
-              }}</span>
-              <span class="records-summary-label"> 次打卡记录</span>
+            <div class="records-summary-left">
+              <div class="records-summary-count">
+                <div class="records-summary-label">
+                  今日：{{ getTodayKey() }}
+                </div>
+                <div>
+                  <span class="records-summary-label">共</span>
+                  <span class="records-summary-count-number">{{
+                    todaySessions.length
+                  }}</span>
+                  <span class="records-summary-label"> 次打卡记录</span>
+                </div>
+              </div>
+              <div class="records-summary-sub">
+                共
+                <span class="records-summary-sub-number">{{
+                  todaySessionsCount
+                }}</span>
+                条采集项
+              </div>
             </div>
-            <div class="records-summary-sub">
-              共
-              <span class="records-summary-sub-number">{{ totalCount }}</span>
-              条采集项
+            <div class="records-summary-right">
+              <div class="records-summary-count">
+                <div class="records-summary-label">
+                  {{ historyData + " 至今日(含当天)" }}
+                </div>
+                <span class="records-summary-label">共</span>
+                <span class="records-summary-count-number">{{
+                  sessions.length
+                }}</span>
+                <span class="records-summary-label"> 次打卡记录</span>
+              </div>
+              <div class="records-summary-sub">
+                共
+                <span class="records-summary-sub-number">{{ totalCount }}</span>
+                条采集项
+              </div>
             </div>
           </div>
           <article
-            v-for="session in sessions"
+            v-for="(session, idx) in visibleSessions"
             :key="session.key"
             class="session-group"
             :class="{ 'is-expanded': expandedKey === session.key }"
+            :style="{
+              borderLeft: `4px solid ${sessionBorderColor(idx)}`,
+            }"
           >
             <header class="session-header" @click="toggleSession(session.key)">
               <div class="session-header-left">
@@ -44,17 +73,13 @@
                   >第 {{ session.sessionId }} 次打卡</span
                 >
                 <h2 class="session-date">{{ session.dateLabel }}</h2>
-                <h2
-                  style="
-                    cursor: pointer;
-                    color: #79bbff;
-                    font-size: 14px;
-                    font-weight: 500;
-                  "
+                <h3 class="session-date2">共{{ session.itemCount }}条采集项</h3>
+                <h3
+                  class="session-date2-link"
                   @click="toggleSession(session.key)"
                 >
                   点击查看详情
-                </h2>
+                </h3>
               </div>
               <div class="session-header-right">
                 <div class="session-count">{{ session.itemCount }} 项</div>
@@ -91,6 +116,18 @@
               </div>
             </div>
           </article>
+
+          <button
+            v-if="showMoreCard"
+            type="button"
+            class="session-group session-more"
+            @click="showAllSessions = true"
+          >
+            <span class="session-more-title">显示更多</span>
+            <span class="session-more-sub"
+              >还有 {{ sessions.length - SESSION_PREVIEW_LIMIT }} 条记录</span
+            >
+          </button>
         </div>
       </template>
     </template>
@@ -98,11 +135,12 @@
 </template>
 
 <script setup>
-import { onActivated, onMounted, ref } from "vue";
+import { onActivated, onMounted, ref, computed } from "vue";
 import { ArrowDown, ArrowUp } from "@element-plus/icons-vue";
 import { ensureLogin } from "../api/auth";
 import { hydrateFromServer } from "../utils/hydrate";
 import { loadRecordSessions } from "../utils/records";
+import { getTodayKey } from "../utils/ema";
 import { trackEvent } from "../utils/tracker";
 
 const loading = ref(true);
@@ -111,12 +149,72 @@ const sessions = ref([]);
 const totalCount = ref(0);
 /** 手风琴：同时最多展开一条；默认最近一条 */
 const expandedKey = ref("");
+const showAllSessions = ref(false);
+const SESSION_PREVIEW_LIMIT = 10;
 let tracked = false;
+
+const visibleSessions = computed(() => {
+  if (showAllSessions.value || sessions.value.length <= SESSION_PREVIEW_LIMIT) {
+    return sessions.value;
+  }
+  return sessions.value.slice(0, SESSION_PREVIEW_LIMIT);
+});
+
+const showMoreCard = computed(
+  () => !showAllSessions.value && sessions.value.length > SESSION_PREVIEW_LIMIT,
+);
+
+const todaySessions = computed(() => {
+  const today = getTodayKey(); // yyyy-MM-dd
+  return sessions.value.filter((session) => session.date === today);
+});
+const todaySessionsCount = computed(() => {
+  let count = 0;
+  for (var i = 0; i < todaySessions.value.length; i++) {
+    count += todaySessions.value[i].items.length;
+  }
+  return count;
+});
+
+const historyData = computed(() => {
+  const list = sessions.value.filter(
+    (session) => session.date !== getTodayKey(),
+  );
+  let earliest = "";
+  for (const session of list) {
+    const d = session.date || "";
+    if (!d) continue;
+    if (!earliest || d < earliest) earliest = d;
+  }
+  return earliest;
+});
+
+const SESSION_BORDER_COLORS = [
+  "#1677ff",
+  "#722ed1",
+  "#fa8c16",
+  "#76de26",
+  "#f30698",
+  "#13c2c2",
+  "#eb2f96",
+  "#2f54eb",
+  "#52c41a",
+  "#fa541c",
+];
+
+/** 按列表顺序依次循环取色 */
+function sessionBorderColor(index) {
+  const i = Number(index) || 0;
+  return SESSION_BORDER_COLORS[i % SESSION_BORDER_COLORS.length];
+}
 
 function refresh() {
   const data = loadRecordSessions();
   sessions.value = data.sessions;
   totalCount.value = data.totalCount;
+  if (sessions.value.length <= SESSION_PREVIEW_LIMIT) {
+    showAllSessions.value = false;
+  }
   const keys = new Set(data.sessions.map((s) => s.key));
   // 展开态失效时收起，不自动展开（详情改为点击后浮动显示）
   if (expandedKey.value && !keys.has(expandedKey.value)) {
@@ -163,29 +261,33 @@ onActivated(async () => {
   height: 100%;
   min-height: 100%;
   margin: 0 auto;
-  padding-bottom: 24px;
   box-sizing: border-box;
+  overflow: auto;
 }
 
 .records-summary {
-  background: linear-gradient(
-    135deg,
-    #f09cb5 0%,
-    #ce31e6 20%,
-    #0619ed 50%,
-    #0f6e5c 70%,
-    #49b968 100%
-  );
+  background: #337ecc;
   border-radius: 16px;
-  padding: 28px 24px;
-  margin-bottom: 20px;
+  padding: 20.5px;
   color: #fff;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: space-around;
   align-items: center;
   box-shadow: 0 8px 24px rgba(15, 110, 92, 0.22);
 }
-
+.records-summary-left {
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.records-summary-right {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 .records-summary-count {
   font-size: 48px;
   font-weight: 700;
@@ -259,6 +361,37 @@ onActivated(async () => {
   z-index: 40;
 }
 
+.session-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 88px;
+  padding: 22px 14px;
+  cursor: pointer;
+  border: 1px dashed #c5d0cb;
+  background: #f7faf8;
+  color: #0f6e5c;
+  font: inherit;
+  box-shadow: none;
+}
+
+.session-more:hover {
+  border-color: #0f6e5c;
+  background: #eef7f3;
+}
+
+.session-more-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.session-more-sub {
+  font-size: 13px;
+  color: #909399;
+}
+
 @media (max-width: 720px) {
   .session-grid {
     grid-template-columns: 1fr;
@@ -304,7 +437,22 @@ onActivated(async () => {
   color: #222;
   line-height: 1.1;
 }
-
+.session-date2 {
+  margin: 0 0 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: #909399;
+  line-height: 1.1;
+  margin-top: 5px;
+}
+.session-date2-link {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: 400;
+  color: #409eff;
+  cursor: pointer;
+  margin-bottom: 0;
+}
 .session-header-right {
   text-align: right;
   flex-shrink: 0;

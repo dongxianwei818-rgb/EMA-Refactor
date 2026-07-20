@@ -12,10 +12,14 @@
         <p class="hero-subtitle">
           问卷 + 文本 + 语音 + 视频 + 运动步数 + 使用行为分析
         </p>
-        <p class="hero-subtitle">指导老师：***</p>
-        <p class="hero-subtitle">研究团队：***</p>
+        <p class="hero-subtitle2">
+          消除回忆偏差、捕捉动态时序规律、高生态真实性
+        </p>
+        <p class="hero-subtitle2">支持情绪识别、行为模式分析、健康风险预警</p>
+        <p class="hero-subtitle3">指导老师：***</p>
+        <p class="hero-subtitle3">研究团队：***</p>
       </el-card>
-      <el-card shadow="never" class="page-card hero-todo">
+      <el-card shadow="never" class="page-card hero-todo section-1">
         <template #header>
           <span>今日打卡进度</span>
         </template>
@@ -38,11 +42,11 @@
     </div>
     <div class="task-list">
       <el-card
-        v-for="item in taskList"
+        v-for="(item, idx) in taskList"
         :key="item.key"
         shadow="hover"
         class="page-card task-card"
-        :class="{ 'task-card--active': item.canTap }"
+        :class="[{ 'task-card--active': item.canTap }, `section-${idx + 2}`]"
         @click="onTaskTap(item)"
       >
         <div class="task-head">
@@ -240,6 +244,7 @@ onMounted(async () => {
   flex-direction: row;
   gap: 16px;
   flex: 1;
+  background: linear-gradient(135deg, #1677ff 0%, #0958d9 100%);
 }
 .hero-todo {
   display: flex;
@@ -262,22 +267,33 @@ onMounted(async () => {
 .hero-title {
   margin: 0 0 8px;
   font-size: 28px;
-  color: #0f6e5c;
+  color: #75eed7;
 }
 .hero-subtitle {
   font-size: 16px;
-  color: #909399;
+  color: #c6e2ff;
   margin: 0;
   line-height: 1.6;
 }
-
+.hero-subtitle2 {
+  font-size: 16px;
+  color: #75eed7;
+  margin: 0;
+  line-height: 1.6;
+}
+.hero-subtitle3 {
+  font-size: 14px;
+  color: #67c23a;
+  margin: 0;
+  line-height: 1.6;
+}
 .hint {
   color: #909399;
   line-height: 1.6;
   margin: 0;
 }
 .hint2 {
-  color: #79bbff;
+  color: #d8e639;
   line-height: 1.6;
   margin: 0;
   font-size: 16px;
@@ -310,6 +326,25 @@ onMounted(async () => {
   border-radius: 16px;
   border: 1px solid #e0e0e0;
   height: 100%;
+}
+
+.section-1 {
+  border-left: 4px solid #1677ff;
+}
+.section-2 {
+  border-left: 4px solid #722ed1;
+}
+.section-3 {
+  border-left: 4px solid #fa8c16;
+}
+.section-4 {
+  border-left: 4px solid #76de26;
+}
+.section-5 {
+  border-left: 4px solid #f30698;
+}
+.section-6 {
+  border-left: 4px solid #13c2c2;
 }
 
 .task-card--active {

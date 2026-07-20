@@ -15,8 +15,20 @@
         :class="{ 'trends-hero-row--split': showRisk }"
       >
         <div class="trends-summary" :class="summaryClass">
-          <div class="trends-summary-title" v-html="summaryTitle"></div>
-          <div class="trends-summary-sub">{{ summarySub }}</div>
+          <div class="trends-summary-left">
+            <div class="trends-summary-title" v-html="summaryTitle"></div>
+            <div class="trends-summary-sub">{{ summarySub }}</div>
+            <div class="trends-summary-sub" v-html="summarySub2"></div>
+          </div>
+          <div class="trends-summary-right">
+            <div class="trends-summary-title" v-html="summaryTitle2"></div>
+            <div class="trends-summary-sub" v-html="summarySub3"></div>
+            <div
+              class="trends-summary-title"
+              style="margin-top: 10px"
+              v-html="summaryTitle22"
+            ></div>
+          </div>
         </div>
 
         <template v-if="showRisk">
@@ -142,9 +154,10 @@
           class="trends-history-row"
         >
           <section
-            v-for="metric in metrics"
+            v-for="(metric, index) in metrics"
             :key="metric.id"
             class="trends-section card"
+            :class="`trends-section-${index + 1}`"
           >
             <h3 class="section-title">{{ metric.label }}（0–10）</h3>
             <div
@@ -167,7 +180,10 @@
             </div>
           </section>
 
-          <section v-if="stepsTrend.length" class="trends-section card">
+          <section
+            v-if="stepsTrend.length"
+            class="trends-section card trends-section-5"
+          >
             <h3 class="section-title">运动步数</h3>
             <div class="steps-meta">
               <span>今日 {{ stepsAnalytics.today || 0 }} 步</span>
@@ -229,15 +245,28 @@ const showHistory = computed(
 );
 
 const summaryTitle = computed(() => {
-  if (props.mode === "risk") return "风险分析";
   if (props.mode === "history") return "趋势分析";
   return "心理健康趋势与风险";
 });
-const summarySub = computed(() => {
-  if (props.mode === "risk") return "当前评估 · 未来预测 · 异常预警";
-  if (props.mode === "history") return "EMA 指标 · 运动步数";
-  return "当前评估 · 未来预测 · 异常预警";
+const summaryTitle2 = computed(() => {
+  return "三大维度风险评估";
 });
+const summaryTitle22 = computed(() => {
+  return "趋势与风险对应落地启示";
+});
+const summarySub = computed(() => {
+  if (props.mode === "history") return "EMA 指标 · 运动步数";
+  return "当前评估 · 未来预测 · 异常预警 · 打卡概况 · 历史趋势";
+});
+const summarySub2 = computed(() => {
+  if (props.mode === "history") return "EMA 指标 · 运动步数";
+  return "数字化 · AI 成为普惠服务核心载体</br> 需求分层清晰 · 细分赛道爆发</br> 开放能力 · 生态共建</br> 行业规范化洗牌 · 告别野蛮生长";
+});
+const summarySub3 = computed(() => {
+  if (props.mode === "history") return "EMA 指标 · 运动步数";
+  return "人群个体心理健康原生风险</br> 行业产业发展风险</br> 数字心理（EMA+AI 多模态）技术特有风险";
+});
+
 const summaryClass = computed(() => ({
   "trends-summary--risk": props.mode === "risk",
   "trends-summary--history": props.mode === "history",
@@ -266,9 +295,9 @@ onMounted(async () => {
 <style scoped>
 .page-trends {
   width: 100%;
-  /* max-width: 1100px; */
   margin: 0 auto;
-  padding-bottom: 24px;
+  height: 100%;
+  overflow: auto;
 }
 
 .trends-hero-row {
@@ -289,13 +318,25 @@ onMounted(async () => {
   margin-bottom: 0;
   color: #fff;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   min-height: 100%;
   box-shadow: 0 8px 24px rgba(22, 119, 255, 0.22);
 }
-
+.trends-summary-left {
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.trends-summary-right {
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
 .trends-hero-row .trends-empty,
 .trends-hero-row .risk-card {
   margin-bottom: 0;
@@ -385,6 +426,22 @@ onMounted(async () => {
   padding: 20px 18px 18px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   border: 1px solid #eef0f2;
+}
+
+.trends-section-1 {
+  border-left: 4px solid #1677ff;
+}
+.trends-section-2 {
+  border-left: 4px solid #722ed1;
+}
+.trends-section-3 {
+  border-left: 4px solid #fa8c16;
+}
+.trends-section-4 {
+  border-left: 4px solid #76de26;
+}
+.trends-section-5 {
+  border-left: 4px solid #f30698;
 }
 
 .panel-tag {
