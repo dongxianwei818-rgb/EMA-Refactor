@@ -6,7 +6,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models import models_for
-from app.services.risk_service import compute_risk_assessment, load_risk_assessment_from_snapshots
+from app.services.behavior_prediction_service import build_behavior_prediction_trend
+from app.services.modality_prediction_service import build_modality_prediction_trend
+from app.services.risk_service import (
+    compute_risk_assessment,
+    load_risk_assessment_from_snapshots,
+    refresh_risk_alerts,
+)
 
 
 def _date_keys(days: int) -> list[str]:
@@ -146,24 +152,30 @@ def _build_steps_trend(hist: list[dict], date_keys: list[str]) -> list[dict]:
     return trend
 
 
-def _behavior_stats(db: Session, user_id: int) -> dict[str, Any]:
-    m = models_for(db=db)
-    BehaviorMeta = m.BehaviorMeta
-    EmaQuestion = m.EmaQuestion
-    meta_row = db.query(BehaviorMeta).filter(BehaviorMeta.user_id == user_id).first()
-    meta = meta_row.meta_data if meta_row else {}
+def _behavior_stats(db: Session, user_id: int, *, user=None) -> dict[str, Any]:
+    """从 behavior_meta + EMA 业务表挖掘打卡概况指标。"""
+    m = models_for(user=user, db=db)
+    meta_row = db.query(m.BehaviorMeta).filter(m.BehaviorMeta.user_id == user_id).first()
+    meta = dict(meta_row.meta_data) if meta_row and meta_row.meta_data else {}
 
     def avg_arr(arr: list | None) -> int:
         if not arr:
             return 0
-        return round(sum(arr) / len(arr))
+        nums = [float(x) for x in arr if x is not None]
+        if not nums:
+            return 0
+        return round(sum(nums) / len(nums))
+
+    def avg_or_fallback(meta_key: str, table_avg: int) -> int:
+        meta_avg = avg_arr(meta.get(meta_key))
+        return meta_avg if meta_avg > 0 else table_avg
 
     missed_days = 0
     for i in range(1, 15):
         day = (date.today() - timedelta(days=i)).isoformat()
         exists = (
-            db.query(EmaQuestion.id)
-            .filter(EmaQuestion.user_id == user_id, EmaQuestion.task_date == day)
+            db.query(m.EmaQuestion.id)
+            .filter(m.EmaQuestion.user_id == user_id, m.EmaQuestion.task_date == day)
             .first()
         )
         if not exists:
@@ -171,13 +183,145 @@ def _behavior_stats(db: Session, user_id: int) -> dict[str, Any]:
         else:
             break
 
+    # 语音 / 视频时长（表优先回退：meta 为空时用业务表）
+    voice_rows = (
+        db.query(m.EmaVoice.duration_sec, m.EmaVoice.skip)
+        .filter(m.EmaVoice.user_id == user_id)
+        .order_by(m.EmaVoice.id.desc())
+        .limit(60)
+        .all()
+    )
+    video_rows = (
+        db.query(m.EmaVideo.duration_sec, m.EmaVideo.skip)
+        .filter(m.EmaVideo.user_id == user_id)
+        .order_by(m.EmaVideo.id.desc())
+        .limit(60)
+        .all()
+    )
+    voice_secs = [int(r.duration_sec or 0) for r in voice_rows if not r.skip and (r.duration_sec or 0) > 0]
+    video_secs = [int(r.duration_sec or 0) for r in video_rows if not r.skip and (r.duration_sec or 0) > 0]
+    voice_skip_table = sum(1 for r in voice_rows if r.skip)
+    video_skip_table = sum(1 for r in video_rows if r.skip)
+
+    # 日记字数
+    diary_rows = (
+        db.query(m.EmaDiary.length)
+        .filter(m.EmaDiary.user_id == user_id)
+        .order_by(m.EmaDiary.id.desc())
+        .limit(60)
+        .all()
+    )
+    diary_lens = [int(r.length or 0) for r in diary_rows if (r.length or 0) > 0]
+
+    # 步数
+    step_rows = (
+        db.query(m.EmaStep.task_date, m.EmaStep.steps)
+        .filter(m.EmaStep.user_id == user_id)
+        .order_by(m.EmaStep.task_date.desc(), m.EmaStep.recorded_at.desc())
+        .limit(90)
+        .all()
+    )
+    step_by_day: dict[str, int] = {}
+    for row in step_rows:
+        if row.task_date not in step_by_day:
+            step_by_day[row.task_date] = int(row.steps or 0)
+    step_vals = list(step_by_day.values())
+    avg_steps = round(sum(step_vals) / len(step_vals)) if step_vals else 0
+    recent7 = step_vals[:7]
+    avg_steps_7 = round(sum(recent7) / len(recent7)) if recent7 else 0
+
+    # 问卷/整轮打卡耗时（checkin_sessions）
+    sessions = (
+        db.query(m.CheckinSession)
+        .filter(
+            m.CheckinSession.user_id == user_id,
+            m.CheckinSession.completed_at.isnot(None),
+            m.CheckinSession.started_at.isnot(None),
+        )
+        .order_by(m.CheckinSession.id.desc())
+        .limit(60)
+        .all()
+    )
+    session_secs: list[int] = []
+    for s in sessions:
+        try:
+            sec = int((s.completed_at - s.started_at).total_seconds())
+        except Exception:
+            continue
+        if 0 < sec < 24 * 3600:
+            session_secs.append(sec)
+    avg_questionnaire_sec = round(sum(session_secs) / len(session_secs)) if session_secs else 0
+
+    # 任务耗时（behavior_meta.taskDurations，毫秒）
+    task_ms: list[float] = []
+    for item in meta.get("taskDurations") or []:
+        if isinstance(item, dict) and item.get("ms") is not None:
+            try:
+                task_ms.append(float(item["ms"]))
+            except (TypeError, ValueError):
+                pass
+        elif isinstance(item, (int, float)):
+            task_ms.append(float(item))
+    avg_task_sec = round((sum(task_ms) / len(task_ms)) / 1000) if task_ms else 0
+
+    # 问卷提交次数 / 打卡天数
+    q_count = db.query(m.EmaQuestion.id).filter(m.EmaQuestion.user_id == user_id).count()
+    checkin_days = (
+        db.query(m.EmaQuestion.task_date)
+        .filter(m.EmaQuestion.user_id == user_id)
+        .distinct()
+        .count()
+    )
+    completed_sessions = (
+        db.query(m.CheckinSession.id)
+        .filter(
+            m.CheckinSession.user_id == user_id,
+            m.CheckinSession.completed_at.isnot(None),
+        )
+        .count()
+    )
+
+    voice_skips = int(meta.get("voiceSkips") or 0) or voice_skip_table
+    video_skips = int(meta.get("videoSkips") or 0) or video_skip_table
+    skip_events_voice = (
+        db.query(m.SkipEvent.id)
+        .filter(m.SkipEvent.user_id == user_id, m.SkipEvent.media_type == "voice")
+        .count()
+    )
+    skip_events_video = (
+        db.query(m.SkipEvent.id)
+        .filter(m.SkipEvent.user_id == user_id, m.SkipEvent.media_type == "video")
+        .count()
+    )
+    if skip_events_voice > voice_skips:
+        voice_skips = skip_events_voice
+    if skip_events_video > video_skips:
+        video_skips = skip_events_video
+
+    avg_diary = avg_or_fallback("diaryWordCounts", avg_arr(diary_lens))
+    avg_voice = avg_or_fallback("voiceDurations", avg_arr(voice_secs))
+    avg_video = avg_or_fallback("videoDurations", avg_arr(video_secs))
+
     return {
         "missedDays": missed_days,
-        "avgDiaryWords": avg_arr(meta.get("diaryWordCounts")),
-        "avgVoiceSec": avg_arr(meta.get("voiceDurations")),
-        "avgVideoSec": avg_arr(meta.get("videoDurations")),
-        "openCount": meta.get("openCount") or 0,
-        "recheckinCount": meta.get("recheckinCount") or 0,
+        "avgDiaryWords": avg_diary,
+        "avgVoiceSec": avg_voice,
+        "avgVideoSec": avg_video,
+        "avgQuestionnaireSec": avg_questionnaire_sec,
+        "avgTaskSec": avg_task_sec,
+        "avgSteps": avg_steps,
+        "avgSteps7": avg_steps_7,
+        "openCount": int(meta.get("openCount") or 0),
+        "recheckinCount": int(meta.get("recheckinCount") or 0),
+        "voiceSkips": voice_skips,
+        "videoSkips": video_skips,
+        "questionnaireCount": int(q_count),
+        "checkinDays": int(checkin_days),
+        "completedSessions": int(completed_sessions),
+        "diaryCount": len(diary_lens) or len(meta.get("diaryWordCounts") or []),
+        "voiceCount": len(voice_secs) or len(meta.get("voiceDurations") or []),
+        "videoCount": len(video_secs) or len(meta.get("videoDurations") or []),
+        "stepDays": len(step_vals),
     }
 
 
@@ -205,13 +349,20 @@ def get_trends_overview(db: Session, user, days: int = 7) -> dict[str, Any]:
     risk = load_risk_assessment_from_snapshots(db, user.id, user=user)
     if not risk:
         risk = compute_risk_assessment(db, user, save_snapshot=False)
+    else:
+        risk = refresh_risk_alerts(db, user, risk)
+
+    modality_forecast = build_modality_prediction_trend(db, user, days=days)
+    behavior_forecast = build_behavior_prediction_trend(db, user, days=days)
 
     return {
         "hasData": has_data,
         "risk": risk,
+        "modalityForecast": modality_forecast,
+        "behaviorForecast": behavior_forecast,
         "metrics": metrics,
         "stepsTrend": steps_trend,
         "stepsAnalytics": steps_analytics,
-        "stats": _behavior_stats(db, user.id),
+        "stats": _behavior_stats(db, user.id, user=user),
         "dayCount": days,
     }

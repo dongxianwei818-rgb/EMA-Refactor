@@ -59,8 +59,8 @@ const userTabs = [
   { path: "/home", label: "首页", icon: House },
   { path: "/records", label: "打卡记录", icon: Document },
   { path: "/trends", label: "趋势分析", icon: TrendCharts },
-  { path: "/resources", label: "资源分享", icon: Collection },
   { path: "/my", label: "我的信息", icon: User },
+  { path: "/resources", label: "资源分享", icon: Collection },
 ];
 
 /** 管理员顶栏：趋势分析 / 风险分析 / 用户管理 + 退出 */
