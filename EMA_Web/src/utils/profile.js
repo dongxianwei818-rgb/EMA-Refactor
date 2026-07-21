@@ -12,7 +12,7 @@ function collectSectionRows(section, profile) {
     section.fields.forEach((f) => {
       const val = profile[f.id]
       if (val !== undefined && val !== null && val !== '') {
-        rows.push({ label: f.label, value: val })
+        rows.push({ id: f.id, label: f.label, value: val })
       }
     })
   }
@@ -20,7 +20,7 @@ function collectSectionRows(section, profile) {
     section.items.forEach((q) => {
       const val = profile[q.id]
       if (val !== undefined && val !== null && val !== '') {
-        rows.push({ label: q.label, value: val })
+        rows.push({ id: q.id, label: q.label, value: val })
       }
     })
   }

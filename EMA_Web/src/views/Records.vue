@@ -74,12 +74,7 @@
                 >
                 <h2 class="session-date">{{ session.dateLabel }}</h2>
                 <h3 class="session-date2">共{{ session.itemCount }}条采集项</h3>
-                <h3
-                  class="session-date2-link"
-                  @click="toggleSession(session.key)"
-                >
-                  点击查看详情
-                </h3>
+                <h3 class="session-date2-link">点击查看详情</h3>
               </div>
               <div class="session-header-right">
                 <div class="session-count">{{ session.itemCount }} 项</div>

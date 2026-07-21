@@ -3,6 +3,10 @@ import http from './http'
 import { trackEvent, flushPendingBehavior } from '../utils/tracker'
 import { invalidateOnboardingGate } from '../utils/onboardingGate'
 import {
+  applyConsentFromServer,
+  setServerProfile,
+} from '../utils/consentState'
+import {
   clearLegacyBusinessStorage,
   invalidateHydrateCache,
   resetStore,
@@ -89,6 +93,18 @@ export async function loginWithPassword(user_name, psw) {
     }
     const data = body.data || body
     persistLogin(data)
+    // 退出后再登录会新建参与记录：用服务端标记强制走知情同意 / 基线
+    setServerProfile({
+      research_id: data.research_id || null,
+      has_baseline: !!data.has_baseline,
+      has_consent: !!data.has_consent,
+      study_status: data.study_status || null,
+    })
+    applyConsentFromServer({
+      has_consent: !!data.has_consent,
+      status: data.has_consent ? 'accept' : null,
+      at: null,
+    })
     clearLegacyBusinessStorage()
     resetStore()
     invalidateHydrateCache()

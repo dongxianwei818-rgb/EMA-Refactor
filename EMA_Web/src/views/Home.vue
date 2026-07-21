@@ -368,4 +368,8 @@ onMounted(async () => {
   font-size: 12px;
   margin: 8px 0 0;
 }
+
+:deep(.el-card__body) {
+  overflow: hidden;
+}
 </style>

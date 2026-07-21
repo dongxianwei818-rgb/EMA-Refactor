@@ -24,10 +24,14 @@ class User(Base):
     __table_args__ = (
         Index("idx_users_user_name", "user_name"),
         Index("idx_users_research_id", "research_id"),
+        # 参与记录主键 id 与研究编号组合唯一；同一 user_name 可有多轮参与
+        UniqueConstraint("id", "research_id", name="uk_users_id_research_id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    user_name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, comment="登录用户名")
+    user_name: Mapped[str] = mapped_column(
+        String(64), nullable=False, comment="登录用户名（可重复，按 id 区分参与轮次）"
+    )
     psw: Mapped[str | None] = mapped_column(String(128), nullable=True, comment="用户密码")
     role: Mapped[int | None] = mapped_column(
         Integer, nullable=True, default=1, comment="0=管理员；1 或空=普通用户"
@@ -47,7 +51,6 @@ class UserLoginLog(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    user_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     logged_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     logout_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="登出时间")
 

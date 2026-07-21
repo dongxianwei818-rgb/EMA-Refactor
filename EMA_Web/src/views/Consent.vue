@@ -2,23 +2,31 @@
   <div class="consent-shell">
     <OnboardingHeader title="知情同意与隐私授权" />
     <div class="consent-page">
-      <h1 class="section-title">知情同意与隐私授权</h1>
+      <div class="consent-grid">
+        <div v-if="isReview && hasAnswered" class="review-banner consent-cell">
+          <h1 class="section-title">知情同意与隐私授权</h1>
+          <div class="review-status">✓ 您已完成知情同意</div>
+          <div class="review-time">同意时间：{{ consentTimeStr }}</div>
+          <div class="review-hint">以下为当时阅读的内容，仅供查阅。</div>
+        </div>
 
-      <div v-if="isReview && hasAnswered" class="review-banner">
-        <div class="review-status">✓ 您已完成知情同意</div>
-        <div class="review-time">同意时间：{{ consentTimeStr }}</div>
-        <div class="review-hint">以下为当时阅读的内容，仅供查阅。</div>
-      </div>
+        <div
+          v-if="isReview && !hasAnswered"
+          class="review-banner review-banner--empty consent-cell"
+        >
+          <h1 class="section-title">知情同意与隐私授权</h1>
+          <div class="review-status">✗ 您尚未完成知情同意</div>
+          <div class="review-hint">请阅读并同意参与本研究</div>
+        </div>
 
-      <div
-        v-if="isReview && !hasAnswered"
-        class="review-banner review-banner--empty"
-      >
-        您尚未完成知情同意与隐私授权。
-      </div>
-
-      <div class="consent-scroll">
-        <div v-for="item in sections" :key="item.title" class="card consent-card">
+        <div
+          v-for="(item, index) in sections"
+          :key="item.title"
+          class="card consent-card consent-cell"
+          :style="{
+            borderLeft: `4px solid ${sessionBorderColor(index)}`,
+          }"
+        >
           <div class="sec-title">{{ item.title }}</div>
           <p class="sec-body">{{ item.content }}</p>
         </div>
@@ -68,6 +76,18 @@ import {
 import { formatConsentTime } from "../utils/datetime";
 import { markOnboardingSynced } from "../utils/onboardingGate";
 
+const SESSION_BORDER_COLORS = [
+  "#1677ff",
+  "#722ed1",
+  "#fa8c16",
+  "#76de26",
+  "#f30698",
+  "#13c2c2",
+  "#eb2f96",
+  "#2f54eb",
+  "#52c41a",
+  "#fa541c",
+];
 const route = useRoute();
 const router = useRouter();
 
@@ -83,6 +103,11 @@ const toast = ref("");
 function toggleAgree(e) {
   if (isReview.value) return;
   agreed.value = !!e.target.checked;
+}
+
+function sessionBorderColor(index) {
+  const i = Number(index) || 0;
+  return SESSION_BORDER_COLORS[i % SESSION_BORDER_COLORS.length];
 }
 
 async function initReviewMode() {
@@ -185,17 +210,46 @@ watch(isReview, initByMode);
 
 <style scoped>
 .consent-shell {
+  height: 100vh;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #eef3f1;
 }
 
 .consent-page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 56px);
-  max-width: 720px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   margin: 0 auto;
   padding: 16px;
+  overflow: hidden;
+}
+
+.consent-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  align-content: flex-start;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.consent-cell {
+  flex: 1 1 calc(50% - 8px);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+  .consent-cell {
+    flex: 1 1 100%;
+  }
 }
 
 .section-title {
@@ -206,10 +260,10 @@ watch(isReview, initByMode);
 }
 
 .review-banner {
-  background: #e8f8ee;
+  background: #79bbff;
   border-radius: 12px;
   padding: 14px 16px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .review-banner--empty {
@@ -221,34 +275,28 @@ watch(isReview, initByMode);
 .review-status {
   font-size: 16px;
   font-weight: 600;
-  color: #07c160;
+  color: #c45656;
 }
 
 .review-time {
   font-size: 14px;
-  color: #666;
+  color: #0606f3;
   margin-top: 6px;
 }
 
 .review-hint {
   font-size: 13px;
-  color: #999;
+  color: #bc4d4d;
   margin-top: 6px;
-}
-
-.consent-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding-bottom: 8px;
 }
 
 .consent-card {
   background: #fff;
   border-radius: 12px;
   padding: 16px 18px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   box-shadow: 0 8px 24px rgba(28, 36, 48, 0.05);
-  border: 1px solid #e8eee9;
+  /* border: 1px solid #e8eee9; */
 }
 
 .sec-title {
@@ -266,10 +314,11 @@ watch(isReview, initByMode);
 }
 
 .footer {
+  flex-shrink: 0;
   padding: 12px 0 8px;
-  position: sticky;
-  bottom: 0;
   background: linear-gradient(to top, #eef3f1 70%, transparent);
+  display: flex;
+  justify-content: space-around;
 }
 
 .agree-row {
@@ -293,7 +342,7 @@ watch(isReview, initByMode);
 
 .btn-primary,
 .btn-secondary {
-  width: 100%;
+  width: 150px;
   border-radius: 10px;
   padding: 12px 16px;
   font-size: 15px;

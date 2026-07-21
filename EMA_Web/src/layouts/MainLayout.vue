@@ -95,12 +95,16 @@ async function onLogout() {
 
 <style scoped>
 .main-layout {
-  min-height: 100vh;
   height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--el-bg-color-page, #eef3f1);
 }
 
 .app-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;

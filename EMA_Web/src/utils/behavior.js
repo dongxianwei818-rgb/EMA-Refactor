@@ -25,9 +25,9 @@ function formatDateTime(ts) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-function pushRows(rows, label, value) {
+function pushRows(rows, label, value, id) {
   if (value === undefined || value === null || value === '') return
-  rows.push({ label, value: String(value) })
+  rows.push({ id: id || undefined, label, value: String(value) })
 }
 
 function moduleLabel(module) {
@@ -41,16 +41,16 @@ export function buildBehaviorDetailSections() {
   const sections = []
 
   const summaryRows = []
-  pushRows(summaryRows, '行为记录总数', stats.total)
-  pushRows(summaryRows, '打开次数', stats.openCount)
-  pushRows(summaryRows, '今日已完成打卡轮次', stats.todaySessions)
-  pushRows(summaryRows, '连续缺测天数', stats.missedDays)
-  pushRows(summaryRows, '补打卡次数', stats.recheckinCount)
-  pushRows(summaryRows, '平均日记字数', stats.avgDiaryWords)
-  pushRows(summaryRows, '平均语音时长(秒)', stats.avgVoiceSec)
-  pushRows(summaryRows, '平均视频时长(秒)', stats.avgVideoSec)
-  pushRows(summaryRows, '语音跳过次数', stats.voiceSkips)
-  pushRows(summaryRows, '视频跳过次数', stats.videoSkips)
+  pushRows(summaryRows, '行为记录总数', stats.total, 'total')
+  pushRows(summaryRows, '打开次数', stats.openCount, 'openCount')
+  pushRows(summaryRows, '今日已完成打卡轮次', stats.todaySessions, 'todaySessions')
+  pushRows(summaryRows, '连续缺测天数', stats.missedDays, 'missedDays')
+  pushRows(summaryRows, '补打卡次数', stats.recheckinCount, 'recheckinCount')
+  pushRows(summaryRows, '平均日记字数', stats.avgDiaryWords, 'avgDiary')
+  pushRows(summaryRows, '平均语音时长(秒)', stats.avgVoiceSec, 'avgVoice')
+  pushRows(summaryRows, '平均视频时长(秒)', stats.avgVideoSec, 'avgVideo')
+  pushRows(summaryRows, '语音跳过次数', stats.voiceSkips, 'voiceSkips')
+  pushRows(summaryRows, '视频跳过次数', stats.videoSkips, 'videoSkips')
   if (summaryRows.length) {
     sections.push({ id: 'summary', title: '行为概览', rows: summaryRows })
   }
@@ -62,6 +62,7 @@ export function buildBehaviorDetailSections() {
       id: 'byModule',
       title: '模块行为统计',
       rows: moduleKeys.map((key) => ({
+        id: `mod_${key}`,
         label: moduleLabel(key),
         value: `${stats.byModule[key]} 次`,
       })),

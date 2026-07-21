@@ -100,6 +100,9 @@ async def auth_wx_login(body: WxLoginRequest):
     description=(
         "校验 ema_web.users 的 user_name / psw，签发含 client_type=web 的 JWT。"
         "默认管理员：admin / 123456（role=0）。"
+        "普通用户若 study_status=exited，密码正确则新建一条 active 参与记录"
+        "（同名 user_name 允许多轮；唯一约束为 id+research_id），"
+        "需重新知情同意并绑定基线。"
     ),
 )
 def auth_password_login(body: PasswordLoginRequest):

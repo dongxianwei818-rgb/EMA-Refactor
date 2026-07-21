@@ -367,6 +367,104 @@ def ensure_drop_research_id_unique() -> None:
             print("Replaced baseline_profiles.uk_baseline_research_id with idx_baseline_research_id.")
 
 
+def ensure_web_users_participation_constraints() -> None:
+    """ema_web：去掉 user_name 唯一；补充 (id, research_id) 唯一，支持同名多轮参与。"""
+    with _active_engine.connect() as conn:
+        has_user_name = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+                "AND COLUMN_NAME = 'user_name'"
+            )
+        ).scalar()
+        if not has_user_name:
+            return
+
+        # 找出仅包含 user_name 的唯一索引并删除
+        unique_indexes = conn.execute(
+            text(
+                "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+                "AND NON_UNIQUE = 0 AND INDEX_NAME != 'PRIMARY'"
+            )
+        ).fetchall()
+        for (index_name,) in unique_indexes:
+            cols = [
+                row[0]
+                for row in conn.execute(
+                    text(
+                        "SELECT COLUMN_NAME FROM information_schema.STATISTICS "
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+                        "AND INDEX_NAME = :idx ORDER BY SEQ_IN_INDEX"
+                    ),
+                    {"idx": index_name},
+                ).fetchall()
+            ]
+            if cols == ["user_name"]:
+                conn.execute(text(f"ALTER TABLE users DROP INDEX `{index_name}`"))
+                conn.commit()
+                print(f"Dropped unique index users.{index_name} on user_name.")
+
+        # 普通索引保留，便于按登录名查询
+        has_name_idx = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+                "AND INDEX_NAME = 'idx_users_user_name'"
+            )
+        ).scalar()
+        if not has_name_idx:
+            conn.execute(text("ALTER TABLE users ADD KEY idx_users_user_name (user_name)"))
+            conn.commit()
+            print("Added users.idx_users_user_name.")
+
+        has_uk = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+                "AND INDEX_NAME = 'uk_users_id_research_id'"
+            )
+        ).scalar()
+        if not has_uk:
+            conn.execute(
+                text(
+                    "ALTER TABLE users ADD UNIQUE KEY uk_users_id_research_id (id, research_id)"
+                )
+            )
+            conn.commit()
+            print("Added users.uk_users_id_research_id (id, research_id).")
+
+
+def ensure_drop_user_login_logs_user_name() -> None:
+    """web：user_login_logs 不再冗余 user_name，仅保留 user_id。"""
+    with _active_engine.connect() as conn:
+        has_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_login_logs' "
+                "AND COLUMN_NAME = 'user_name'"
+            )
+        ).scalar()
+        if not has_col:
+            return
+        # 先删依赖该列的索引
+        indexes = conn.execute(
+            text(
+                "SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_login_logs' "
+                "AND COLUMN_NAME = 'user_name' AND INDEX_NAME != 'PRIMARY'"
+            )
+        ).fetchall()
+        for (index_name,) in indexes:
+            # 仅当索引只含 user_name，或必须为删列而先 drop
+            conn.execute(text(f"ALTER TABLE user_login_logs DROP INDEX `{index_name}`"))
+            conn.commit()
+            print(f"Dropped user_login_logs index {index_name}.")
+        conn.execute(text("ALTER TABLE user_login_logs DROP COLUMN user_name"))
+        conn.commit()
+        print("Dropped user_login_logs.user_name column.")
+
+
 def ensure_web_admin_user(client_type: str) -> None:
     """ema_web：默认管理员 admin / 123456 / role=0。"""
     if client_type != CLIENT_TYPE_WEB:
@@ -435,6 +533,8 @@ def main() -> None:
         ensure_users_logout_at_and_openid_index()
         ensure_feature_session_columns()
         ensure_drop_research_id_unique()
+        ensure_web_users_participation_constraints()
+        ensure_drop_user_login_logs_user_name()
         ensure_web_admin_user(client_type)
         # ensure_app_admin_user(client_type)
     print("Tables created successfully for all client databases.")

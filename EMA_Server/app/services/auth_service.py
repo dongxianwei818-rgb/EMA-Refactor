@@ -41,9 +41,8 @@ def record_user_login(db: Session, user, client_type: str | None = None) -> dict
     user.login_count = (user.login_count or 0) + 1
     principal = user_principal(user)
     log_kwargs = {"user_id": user.id, "logged_at": logged_at}
-    if hasattr(UserLoginLog, "user_name"):
-        log_kwargs["user_name"] = principal
-    else:
+    # wechat/app 冗余 openid；web 仅存 user_id
+    if hasattr(UserLoginLog, "openid"):
         log_kwargs["openid"] = principal
     log = UserLoginLog(**log_kwargs)
     db.add(log)
@@ -61,7 +60,6 @@ def record_user_login(db: Session, user, client_type: str | None = None) -> dict
 
 
 def record_user_logout(db: Session, user, client_type: str | None = None) -> dict:
-    # 必须按 user/db 选模型：web 库列为 user_name，wechat/app 为 openid
     UserLoginLog = models_for(client_type=client_type, user=user, db=db).UserLoginLog
     logout_at = datetime.now()
     principal = user_principal(user)
@@ -119,8 +117,13 @@ async def wx_login(db: Session, code: str, client_type: str) -> dict:
 
 
 def password_login(db: Session, user_name: str, psw: str, client_type: str = "web") -> dict:
-    """Web 端用户名密码登录，校验 users.user_name / users.psw。"""
+    """Web 端用户名密码登录，校验 users.user_name / users.psw。
+
+    普通用户若已退出研究（study_status=exited）：校验密码通过后新建一条参与记录
+   （study_status=active，无 research_id），需重新知情同意并绑定基线。
+    """
     from app.client_types import CLIENT_TYPE_WEB, validate_client_type
+    from app.services.user_service import create_participation_user
 
     client_type = validate_client_type(client_type)
     if client_type != CLIENT_TYPE_WEB:
@@ -132,14 +135,37 @@ def password_login(db: Session, user_name: str, psw: str, client_type: str = "we
     if not name or not psw:
         raise ValueError("用户名和密码不能为空")
 
+    # 优先使用当前 active 参与记录；否则取同名最近一条（含已退出）
     user = (
         db.query(User)
         .filter(User.user_name == name, User.study_status == "active")
         .order_by(User.id.desc())
         .first()
     )
+    if not user:
+        user = (
+            db.query(User)
+            .filter(User.user_name == name)
+            .order_by(User.id.desc())
+            .first()
+        )
+
     if not user or (user.psw or "") != psw:
         raise ValueError("用户名或密码错误")
+
+    role = getattr(user, "role", None)
+    is_admin = role == 0
+
+    if is_admin:
+        if (user.study_status or "") != "active":
+            raise ValueError(f"账号当前状态为「{user.study_status or '未知'}」，无法登录")
+    elif (user.study_status or "") == "exited":
+        # 退出后再登录：新建参与轮次，重新走知情同意 + 基线绑定
+        user = create_participation_user(db, user)
+        db.commit()
+        db.refresh(user)
+    elif (user.study_status or "") != "active":
+        raise ValueError(f"账号当前状态为「{user.study_status or '未知'}」，无法登录")
 
     record_user_login(db, user, client_type)
     db.refresh(user)

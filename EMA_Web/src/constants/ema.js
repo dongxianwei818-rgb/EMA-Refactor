@@ -42,6 +42,7 @@ export const BASELINE_SECTIONS = [
   {
     id: "academic",
     title: "学业压力",
+    hint: "请根据最近一周的实际学习情况作答",
     items: [
       {
         id: "course_pressure",
@@ -68,6 +69,7 @@ export const BASELINE_SECTIONS = [
   {
     id: "lifestyle",
     title: "生活方式",
+    hint: "请根据最近一周生活方式的实际感受作答",
     items: [
       {
         id: "sleep_habit",

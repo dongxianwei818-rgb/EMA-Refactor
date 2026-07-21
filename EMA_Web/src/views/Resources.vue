@@ -2,9 +2,22 @@
   <div class="page-resources">
     <div class="resources-grid">
       <div class="resources-banner resources-cell">
-        <div class="resources-banner-title">心理健康资源</div>
-        <div class="resources-banner-sub">求助热线、校内支持与自助练习</div>
-        <div class="resources-banner-sub">学校心理中心、热线、预约方式</div>
+        <div class="resources-banner-left">
+          <div class="resources-banner-title">心理健康资源</div>
+          <div class="resources-banner-sub">求助热线、校内支持与自助练习</div>
+          <div class="resources-banner-sub">学校心理中心、热线、预约方式</div>
+          <div class="resources-banner-sub">快速搭建标准化心理服务体系</div>
+          <div class="resources-banner-sub">
+            搭建多层级危机干预网络，降低极端心理事件发生率
+          </div>
+        </div>
+        <div class="resources-banner-right">
+          <div class="resources-banner-title">打破时空限制，降低求助门槛</div>
+          <div class="resources-banner-sub">全场景随时获取服务</div>
+          <div class="resources-banner-sub">服务分层适配不同人群</div>
+          <div class="resources-banner-sub">数据互通，不用重复填报信息</div>
+          <div class="resources-banner-sub">跨场景风险联动预警</div>
+        </div>
       </div>
 
       <section
@@ -94,11 +107,29 @@ onMounted(() => {
   padding: 28px 24px;
   color: #fff;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   text-align: center;
   box-shadow: 0 8px 24px rgba(114, 46, 209, 0.22);
+}
+.resources-banner-left {
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  justify-content: center;
+  text-align: center;
+}
+.resources-banner-right {
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  justify-content: center;
+  text-align: center;
 }
 
 .resources-banner-title {

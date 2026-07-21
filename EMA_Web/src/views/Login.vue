@@ -81,9 +81,6 @@ const rules = {
 
 async function resolvePostLoginPath() {
   if (isAdmin()) return "/trends";
-  const redirect =
-    typeof route.query.redirect === "string" ? route.query.redirect : "";
-  if (redirect && redirect !== "/login") return redirect;
 
   try {
     const profile = await fetchProfile();
@@ -92,6 +89,7 @@ async function resolvePostLoginPath() {
         research_id: profile.research_id,
         has_baseline: profile.has_baseline,
         has_consent: profile.has_consent,
+        study_status: profile.study_status,
       });
       if (typeof profile.has_consent === "boolean") {
         applyConsentFromServer({
@@ -109,7 +107,6 @@ async function resolvePostLoginPath() {
       } catch (e) {
         console.warn("登录后同步用户数据失败", e);
       }
-      return "/home";
     }
   } catch {
     /* fall through to local checks */
@@ -117,6 +114,10 @@ async function resolvePostLoginPath() {
 
   if (!hasConsent()) return "/consent";
   if (!isResearchBound()) return "/baseline";
+
+  const redirect =
+    typeof route.query.redirect === "string" ? route.query.redirect : "";
+  if (redirect && redirect !== "/login") return redirect;
   return "/home";
 }
 

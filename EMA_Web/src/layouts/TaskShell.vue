@@ -42,11 +42,16 @@ async function onLogout() {
 
 <style scoped>
 .task-shell {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #eef3f1;
 }
 
 .task-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -69,8 +74,12 @@ async function onLogout() {
 }
 
 .task-main {
-  width: min(720px, 100%);
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   margin: 0 auto;
   padding: 16px;
+  overflow: auto;
+  box-sizing: border-box;
 }
 </style>
