@@ -108,9 +108,9 @@ onMounted(async () => {
 <style scoped>
 .page-profile-detail {
   width: 100%;
-  max-width: 1100px;
   margin: 0 auto;
-  padding-bottom: 24px;
+  height: 100%;
+  overflow: auto;
 }
 
 .detail-nav {

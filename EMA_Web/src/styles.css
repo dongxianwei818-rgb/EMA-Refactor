@@ -6,6 +6,8 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #c5cad1 transparent;
 }
 
 html,
@@ -39,4 +41,66 @@ a {
   --el-button-border-color: #0f6e5c;
   --el-button-hover-bg-color: #0c5a4b;
   --el-button-hover-border-color: #0c5a4b;
+}
+
+/* 全局滚动条：细灰圆角滑块 + 上下箭头 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #c5cad1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #aeb4bc;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-button:single-button {
+  display: block;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px 6px;
+}
+
+*::-webkit-scrollbar-button:single-button:vertical:decrement {
+  height: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath fill='%23c5cad1' d='M4 0L8 6H0z'/%3E%3C/svg%3E");
+}
+
+*::-webkit-scrollbar-button:single-button:vertical:increment {
+  height: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath fill='%23c5cad1' d='M0 0h8L4 6z'/%3E%3C/svg%3E");
+}
+
+*::-webkit-scrollbar-button:single-button:horizontal:decrement {
+  width: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='8' viewBox='0 0 6 8'%3E%3Cpath fill='%23c5cad1' d='M6 0v8L0 4z'/%3E%3C/svg%3E");
+}
+
+*::-webkit-scrollbar-button:single-button:horizontal:increment {
+  width: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='8' viewBox='0 0 6 8'%3E%3Cpath fill='%23c5cad1' d='M0 0l6 4-6 4z'/%3E%3C/svg%3E");
+}
+
+*::-webkit-scrollbar-button:single-button:vertical:decrement:hover,
+*::-webkit-scrollbar-button:single-button:vertical:increment:hover,
+*::-webkit-scrollbar-button:single-button:horizontal:decrement:hover,
+*::-webkit-scrollbar-button:single-button:horizontal:increment:hover {
+  filter: brightness(0.85);
 }

@@ -1,5 +1,6 @@
 import { getSubmissions, getVideoSkips, getVoiceSkips, getTodayKey, getTodayCheckinSessions } from './ema'
 import { getStore } from './sessionStore'
+import { EMA_QUESTIONS } from '../constants/ema'
 
 const LABELS = {
   questionnaire: 'EMA 问卷',
@@ -25,6 +26,16 @@ function formatTime(ts) {
   return `${h < 10 ? '0' : ''}${h}:${m < 10 ? '0' : ''}${m}`
 }
 
+function buildQuestionnaireDetails(payload = {}) {
+  const answers = payload.answers || {}
+  return EMA_QUESTIONS.map((q) => {
+    const raw = answers[q.id]
+    if (raw === undefined || raw === null || raw === '') return null
+    const value = q.type === 'scale10' ? `${raw}/10` : String(raw)
+    return { id: q.id, label: q.label, value }
+  }).filter(Boolean)
+}
+
 function buildItemSummary(item) {
   const p = item.payload || {}
   switch (item.type) {
@@ -32,8 +43,15 @@ function buildItemSummary(item) {
       return p.text || '（无内容）'
     case 'steps':
       return `步数 ${p.steps != null ? p.steps : '--'}`
-    case 'questionnaire':
-      return `完成用时 ${p.durationSec != null ? p.durationSec : '--'} 秒`
+    case 'questionnaire': {
+      const details = buildQuestionnaireDetails(p)
+      const duration =
+        p.durationSec != null ? `完成用时 ${p.durationSec} 秒` : ''
+      if (details.length) {
+        return duration || `共 ${details.length} 题作答`
+      }
+      return duration || '（无问卷内容）'
+    }
     case 'voice':
       if (p.skip) return '语音跳过'
       return `录音时长 ${p.duration != null ? p.duration : '--'} 秒`
@@ -43,6 +61,11 @@ function buildItemSummary(item) {
     default:
       return '已记录'
   }
+}
+
+function buildItemDetails(item) {
+  if (item.type !== 'questionnaire') return []
+  return buildQuestionnaireDetails(item.payload || {})
 }
 
 function hasSkipRecord(list, type, date, sessionId) {
@@ -138,6 +161,7 @@ export function groupSubmissions(list) {
       type: item.type,
       typeLabel: LABELS[item.type] || item.type,
       summary: buildItemSummary(item),
+      details: buildItemDetails(item),
       timeLabel: formatTime(item.at),
     })
   })

@@ -66,7 +66,7 @@ const userTabs = [
 /** 管理员顶栏：趋势分析 / 风险分析 / 用户管理 + 退出 */
 const adminTabs = [
   { path: "/trends", label: "趋势分析", icon: TrendCharts },
-  { path: "/risk", label: "风险分析", icon: Warning },
+  { path: "/risk", label: "风险预警", icon: Warning },
   { path: "/users", label: "用户管理", icon: Setting },
 ];
 

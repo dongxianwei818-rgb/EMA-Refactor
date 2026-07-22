@@ -897,9 +897,10 @@ def refresh_risk_alerts(db: Session, user, risk: dict[str, Any] | None) -> dict[
 
 
 def _resolve_level(total: int, critical: bool) -> str:
-    if critical or total >= 6:
+    """风险等级：0–4 低 / 5–9 中 / 10–15 高；critical 信号强制高风险。"""
+    if critical or total >= 10:
         return "high"
-    if total >= 3:
+    if total >= 5:
         return "medium"
     return "low"
 

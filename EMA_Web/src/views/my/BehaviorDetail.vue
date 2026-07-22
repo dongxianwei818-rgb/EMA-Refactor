@@ -29,11 +29,9 @@
           class="profile-row"
           :class="{ 'is-last': idx === section.rows.length - 1 }"
         >
-          <span
-            class="profile-label"
-            :class="labelClass(row, idx)"
-            >{{ row.label }}</span
-          >
+          <span class="profile-label" :class="labelClass(row, idx)">{{
+            row.label
+          }}</span>
           <span class="profile-value">{{ row.value }}</span>
         </div>
       </section>
@@ -109,9 +107,9 @@ onMounted(async () => {
 <style scoped>
 .page-detail {
   width: 100%;
-  max-width: 1100px;
   margin: 0 auto;
-  padding-bottom: 24px;
+  height: 100%;
+  overflow: auto;
 }
 
 .detail-nav {

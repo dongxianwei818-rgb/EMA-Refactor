@@ -106,6 +106,19 @@
                 </span>
                 <div class="record-item-main">
                   <p class="record-item-summary">{{ record.summary }}</p>
+                  <div
+                    v-if="record.details?.length"
+                    class="record-item-details"
+                  >
+                    <div
+                      v-for="row in record.details"
+                      :key="row.id"
+                      class="record-qa"
+                    >
+                      <span class="record-qa-q">{{ row.label }}</span>
+                      <span class="record-qa-a">{{ row.value }}</span>
+                    </div>
+                  </div>
                   <p class="record-item-time">{{ record.timeLabel }}</p>
                 </div>
               </div>
@@ -569,6 +582,48 @@ onActivated(async () => {
   color: #333;
   line-height: 1.55;
   word-break: break-word;
+}
+
+.record-item-details {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #f7f9fc;
+  border-radius: 8px;
+  border: 1px solid #eef0f2;
+}
+
+.record-qa {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eef0f2;
+}
+
+.record-qa:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.record-qa:first-child {
+  padding-top: 0;
+}
+
+.record-qa-q {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.45;
+}
+
+.record-qa-a {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1677ff;
+  line-height: 1.45;
 }
 
 .record-item-time {

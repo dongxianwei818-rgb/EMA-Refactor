@@ -24,7 +24,7 @@
             <div>风险指数范围是 0–15（与现有风险评估的风险指数一致）</div>
             <div
               class="risk-summary"
-              style="margin-top: 10px; margin-bottom: 10px"
+              style="margin-top: 10px; margin-bottom: 10px; margin-left: 0px"
             >
               <span class="modality-summary-low">低风险：0–4</span>
               <span class="modality-summary-medium">中等关注：5–9</span>
@@ -35,11 +35,9 @@
                 五模态各自的分数也是同一套 0–15刻度
               </p>
               <p style="margin: 3px 0; font-size: 13px">
-                当日有数据的模态按权重加权平均后得到「融合指数」。
-              </p>
-              <p style="margin: 3px 0; font-size: 13px">
                 进度条宽度按 分数 / 15 计算。
               </p>
+              <p style="margin: 3px 0; font-size: 13px">问卷指标刻度 0–10；</p>
             </div>
           </div>
         </div>
@@ -51,30 +49,60 @@
 
           <section v-else class="trends-section card risk-card">
             <span class="panel-tag">01</span>
-            <h3 class="section-title">当前风险评估</h3>
-            <div class="risk-level-row">
-              <span class="risk-badge" :class="current.levelClass">{{
-                current.levelLabel
-              }}</span>
-              <div class="risk-meta">
-                <span class="risk-score"
-                  >风险指数 {{ current.score ?? "--" }}</span
-                >
-                <span class="risk-updated">{{
-                  current.updatedLabel || ""
+            <div class="risk-card-head">
+              <h3 class="section-title">当前风险评估</h3>
+              <div class="risk-level-row">
+                <span class="risk-badge" :class="current.levelClass">{{
+                  current.levelLabel
                 }}</span>
+                <div class="risk-meta">
+                  <span
+                    class="risk-score"
+                    :style="{
+                      color:
+                        current.score >= 10
+                          ? '#f5222d'
+                          : current.score >= 5
+                            ? '#faad14'
+                            : '#52c41a',
+                    }"
+                    >风险指数 {{ current.score ?? "--" }}</span
+                  >
+                  <span class="risk-updated">{{
+                    current.updatedLabel || ""
+                  }}</span>
+                </div>
               </div>
+              <p
+                class="risk-summary"
+                :style="{
+                  color:
+                    current.score >= 10
+                      ? '#f5222d'
+                      : current.score >= 5
+                        ? '#faad14'
+                        : '#52c41a',
+                }"
+              >
+                {{ current.summary || "暂无摘要" }}
+              </p>
             </div>
-            <p class="risk-summary">{{ current.summary || "暂无摘要" }}</p>
             <div v-if="current.factors?.length" class="risk-factors">
               <div
-                v-for="item in current.factors"
+                v-for="(item, index) in current.factors"
                 :key="item.label"
                 class="risk-factor"
               >
-                <span class="risk-factor-label">{{ item.label }}</span>
-                <span class="risk-factor-value">{{ item.value }}</span>
-                <span class="risk-factor-source">{{ item.source }}</span>
+                <span
+                  class="risk-factor-type"
+                  :class="`risk-factor-type--${index % 5}`"
+                >
+                  {{ item.label }}
+                </span>
+                <div class="risk-factor-main">
+                  <p class="risk-factor-summary">{{ item.value }}</p>
+                  <p class="risk-factor-time">{{ item.source || "EMA" }}</p>
+                </div>
               </div>
             </div>
           </section>
@@ -203,6 +231,9 @@
                   modalityForecast.summary?.split(" ")[0] ||
                   "完成五项 EMA 采集后将展示特征融合预测。"
                 }}
+              </p>
+              <p class="risk-summary">
+                当日有数据的模态按权重加权平均后得到「融合指数」
               </p>
             </div>
             <div
@@ -475,82 +506,103 @@
         </p>
       </section>
 
-      <div
-        v-if="showRisk && showHistory && hasData && risk.hasAssessment"
-        style="margin-bottom: 16px"
-      >
-        <span class="trends-divider-text">历史数据趋势</span>
-      </div>
+      <section v-if="showHistory" class="trends-section card history-card">
+        <span class="panel-tag panel-tag--history">07</span>
+        <h3 class="section-title">历史数据趋势</h3>
 
-      <template v-if="showHistory">
-        <div v-if="!hasData && !showRisk" class="trends-empty">
+        <div v-if="!hasData" class="trends-empty history-empty">
           完成 EMA 打卡后，将展示历史趋势数据
         </div>
 
-        <div
-          v-else-if="hasData && (metrics.length || stepsTrend.length)"
-          class="trends-history-row"
-        >
-          <section
-            v-for="(metric, index) in metrics"
-            :key="metric.id"
-            class="trends-section card"
-            :class="`trends-section-${index + 1}`"
-          >
-            <h3 class="section-title">{{ metric.label }}（0–10）</h3>
-            <div
-              v-for="point in metric.points"
-              :key="`${metric.id}-${point.dateLabel}`"
-              class="trend-row"
-            >
-              <span class="trend-date">{{ point.dateLabel }}</span>
-              <div class="trend-bar-wrap">
-                <div
-                  v-if="point.hasData"
-                  class="trend-bar trend-bar-ema"
-                  :style="{ width: `${point.barWidth || 0}%` }"
-                />
-                <span v-else class="trend-empty">—</span>
+        <template v-else-if="historyChips.length || stepsTrend.length">
+          <div class="modality-summary">
+            <div class="modality-summary-left">
+              <div style="width: 50%">
+                <p class="risk-summary">
+                  {{ historySummaryText }}
+                </p>
+                <p class="risk-summary">数据按近 7 日最新值显示。</p>
               </div>
-              <span class="trend-value">{{
-                point.hasData ? point.value : ""
-              }}</span>
-            </div>
-          </section>
-
-          <section
-            v-if="stepsTrend.length"
-            class="trends-section card trends-section-5"
-          >
-            <h3 class="section-title">运动步数</h3>
-            <div class="steps-meta">
-              <span>今日 {{ stepsAnalytics.today || 0 }} 步</span>
-              <span>7 日均 {{ stepsAnalytics.avg7 || 0 }} 步</span>
-              <span v-if="stepsAnalytics.baseline"
-                >基线 {{ stepsAnalytics.baseline }} 步</span
+              <div
+                class="modality-summary-score"
+                :style="{ color: historyScoreColor }"
               >
-            </div>
-            <div
-              v-for="item in stepsTrend"
-              :key="item.dateLabel"
-              class="trend-row"
-            >
-              <span class="trend-date">{{ item.dateLabel }}</span>
-              <div class="trend-bar-wrap">
-                <div
-                  v-if="item.hasData"
-                  class="trend-bar trend-bar-steps"
-                  :style="{ width: `${item.barWidth || 0}%` }"
-                />
-                <span v-else class="trend-empty">—</span>
+                {{ historyLatestMood ?? "—" }}
               </div>
-              <span class="trend-value">{{
-                item.hasData ? item.steps : ""
-              }}</span>
             </div>
-          </section>
-        </div>
-      </template>
+          </div>
+
+          <div class="modality-chips">
+            <div
+              v-for="item in historyChips"
+              :key="item.id"
+              class="modality-chip history-chip"
+              :class="{
+                'modality-chip--elevated': item.elevated,
+                'modality-chip--empty': !item.hasData,
+              }"
+            >
+              <span class="modality-chip-label">{{ item.label }}</span>
+              <span class="modality-chip-score">
+                {{ item.hasData ? item.score : "—" }}
+              </span>
+              <span class="modality-chip-flag">
+                {{ !item.hasData ? "暂无" : item.elevated ? "偏高" : "平稳" }}
+              </span>
+            </div>
+          </div>
+
+          <div class="modality-panels history-panels">
+            <div
+              v-for="panel in historyPanels"
+              :key="panel.id"
+              class="modality-panel"
+            >
+              <div class="forecast-head">
+                <div class="forecast-trend">
+                  <span class="forecast-trend-label">{{ panel.title }}</span>
+                  <span class="forecast-trend-value">
+                    {{ panel.latestLabel }}
+                  </span>
+                </div>
+                <span
+                  v-if="panel.badge"
+                  class="risk-badge"
+                  :class="panel.badgeClass"
+                >
+                  {{ panel.badge }}
+                </span>
+              </div>
+              <div v-if="panel.meta" class="steps-meta history-panel-meta">
+                <span v-for="(m, i) in panel.meta" :key="i">{{ m }}</span>
+              </div>
+              <div class="forecast-chart">
+                <div
+                  v-for="(point, idx) in panel.points"
+                  :key="`${panel.id}-${point.dateLabel}-${idx}`"
+                  class="forecast-day"
+                >
+                  <span class="forecast-date">{{ point.dateLabel }}</span>
+                  <div class="forecast-bar-wrap">
+                    <div
+                      v-if="point.hasData"
+                      class="forecast-bar"
+                      :class="point.barClass"
+                      :style="{ width: `${point.barWidth || 0}%` }"
+                    />
+                    <span v-else class="trend-empty">—</span>
+                  </div>
+                  <span class="forecast-score">{{
+                    point.hasData ? point.display : ""
+                  }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <p v-else class="risk-no-alert">暂无历史趋势数据。</p>
+      </section>
     </template>
   </div>
 </template>
@@ -583,6 +635,158 @@ const showRisk = computed(() => props.mode === "all" || props.mode === "risk");
 const showHistory = computed(
   () => props.mode === "all" || props.mode === "history",
 );
+
+function latestMetricPoint(metric) {
+  const points = metric?.points || [];
+  for (let i = points.length - 1; i >= 0; i -= 1) {
+    if (points[i]?.hasData) return points[i];
+  }
+  return null;
+}
+
+function emaElevated(metricId, value) {
+  if (value == null) return false;
+  if (metricId === "mood" || metricId === "sleep") return value <= 3;
+  return value >= 7;
+}
+
+function emaLevel(metricId, value) {
+  if (value == null) return "unknown";
+  if (metricId === "mood" || metricId === "sleep") {
+    if (value <= 3) return "high";
+    if (value <= 5) return "medium";
+    return "low";
+  }
+  if (value >= 7) return "high";
+  if (value >= 5) return "medium";
+  return "low";
+}
+
+function levelBadge(level) {
+  if (level === "high") return { label: "需关注", className: "risk-high" };
+  if (level === "medium") return { label: "波动", className: "risk-medium" };
+  if (level === "low") return { label: "平稳", className: "risk-low" };
+  return { label: "待评估", className: "risk-unknown" };
+}
+
+const historyChips = computed(() => {
+  const chips = (metrics.value || []).map((metric) => {
+    const latest = latestMetricPoint(metric);
+    const value = latest?.value;
+    const hasData = value != null;
+    return {
+      id: metric.id,
+      label: metric.label,
+      score: hasData ? value : null,
+      hasData,
+      elevated: hasData ? emaElevated(metric.id, value) : false,
+    };
+  });
+  const stepPoints = stepsTrend.value || [];
+  let latestSteps = null;
+  for (let i = stepPoints.length - 1; i >= 0; i -= 1) {
+    if (stepPoints[i]?.hasData) {
+      latestSteps = stepPoints[i].steps;
+      break;
+    }
+  }
+  chips.push({
+    id: "steps",
+    label: "步数",
+    score: latestSteps,
+    hasData: latestSteps != null,
+    elevated: latestSteps != null && latestSteps > 0 && latestSteps < 3000,
+  });
+  return chips;
+});
+
+const historyLatestMood = computed(() => {
+  const mood = historyChips.value.find((c) => c.id === "mood");
+  return mood?.hasData ? mood.score : null;
+});
+
+const historyScoreColor = computed(() => {
+  const v = historyLatestMood.value;
+  if (v == null) return "#0550eb";
+  if (v <= 3) return "#f5222d";
+  if (v <= 5) return "#faad14";
+  return "#52c41a";
+});
+
+const historySummaryText = computed(() => {
+  const withData = historyChips.value.filter((c) => c.hasData).length;
+  const mood = historyLatestMood.value;
+  if (!withData) return "完成 EMA 打卡后，将展示近 7 日指标与步数历史。";
+  if (mood != null) {
+    return `近 7 日历史趋势：已有 ${withData} 项指标数据，最近心情指数`;
+  }
+  return `近 7 日历史趋势：已有 ${withData} 项指标数据。`;
+});
+
+const historyPanels = computed(() => {
+  const panels = (metrics.value || []).map((metric) => {
+    const latest = latestMetricPoint(metric);
+    const level = emaLevel(metric.id, latest?.value);
+    const badge = levelBadge(level);
+    return {
+      id: metric.id,
+      title: `${metric.label}（0–10）`,
+      latestLabel: latest?.hasData ? String(latest.value) : "—",
+      badge: badge.label,
+      badgeClass: badge.className,
+      meta: null,
+      points: (metric.points || []).map((p) => {
+        const lv = p.hasData ? emaLevel(metric.id, p.value) : "unknown";
+        return {
+          dateLabel: p.dateLabel,
+          hasData: p.hasData,
+          display: p.value,
+          barWidth: p.barWidth || 0,
+          barClass: `forecast-bar-${lv === "unknown" ? "low" : lv}`,
+        };
+      }),
+    };
+  });
+
+  if (stepsTrend.value?.length) {
+    const stepPoints = stepsTrend.value;
+    let latestSteps = null;
+    for (let i = stepPoints.length - 1; i >= 0; i -= 1) {
+      if (stepPoints[i]?.hasData) {
+        latestSteps = stepPoints[i].steps;
+        break;
+      }
+    }
+    const elevated =
+      latestSteps != null && latestSteps > 0 && latestSteps < 3000;
+    const badge = elevated
+      ? { label: "偏低", className: "risk-medium" }
+      : latestSteps != null
+        ? { label: "正常", className: "risk-low" }
+        : { label: "待评估", className: "risk-unknown" };
+    const a = stepsAnalytics.value || {};
+    panels.push({
+      id: "steps",
+      title: "运动步数",
+      latestLabel: latestSteps != null ? String(latestSteps) : "—",
+      badge: badge.label,
+      badgeClass: badge.className,
+      meta: [
+        `今日 ${a.today || 0} 步`,
+        `7 日均 ${a.avg7 || 0} 步`,
+        a.baseline ? `基线 ${a.baseline} 步` : null,
+      ].filter(Boolean),
+      points: stepPoints.map((p) => ({
+        dateLabel: p.dateLabel,
+        hasData: p.hasData,
+        display: p.steps,
+        barWidth: p.barWidth || 0,
+        barClass: "forecast-bar-steps",
+      })),
+    });
+  }
+  return panels;
+});
 
 const recordStatItems = computed(() => {
   const s = stats.value || {};
@@ -743,6 +947,13 @@ onMounted(async () => {
 .trends-hero-row .risk-card {
   margin-bottom: 0;
   height: 100%;
+  min-height: 0;
+}
+
+.trends-hero-row .risk-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .trends-detail-row {
@@ -876,7 +1087,7 @@ onMounted(async () => {
 }
 
 .section-title {
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   font-size: 16px;
   font-weight: 700;
   color: #222;
@@ -896,7 +1107,7 @@ onMounted(async () => {
   height: 100%;
   background: #e1f3d8;
   border-radius: 12px;
-  padding: 12px;
+  /* padding: 12px; */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -912,6 +1123,8 @@ onMounted(async () => {
   text-align: center;
   border-radius: 12px;
   font-size: 80px;
+  background: #7077d1;
+  height: 100%;
 }
 .modality-summary-right {
   width: 50%;
@@ -923,6 +1136,14 @@ onMounted(async () => {
 
 .risk-card {
   border-left: 4px solid #1677ff;
+}
+
+.risk-card-head {
+  flex-shrink: 0;
+}
+
+.risk-card-head .risk-summary {
+  margin-bottom: 0;
 }
 
 .forecast-card {
@@ -955,6 +1176,32 @@ onMounted(async () => {
   background: #2f54eb;
 }
 
+.history-card {
+  border-left: 4px solid #0f6e5c;
+  margin-bottom: 16px;
+}
+
+.panel-tag--history {
+  background: #0f6e5c;
+}
+
+.history-chip {
+  border-color: #d9f2ec;
+  background: #f2fbf8;
+}
+
+.history-empty {
+  margin-top: 8px;
+}
+
+.history-panels {
+  margin-top: 0;
+}
+
+.history-panel-meta {
+  margin-bottom: 10px;
+}
+
 .behavior-chip {
   border-color: #e6ebff;
   background: #f5f7ff;
@@ -969,7 +1216,7 @@ onMounted(async () => {
 
 .modality-chip {
   border: 1px solid #e8f7f7;
-  background: #f6fffe;
+  background: #e8f7f7;
   border-radius: 12px;
   padding: 10px 12px;
   display: flex;
@@ -1049,7 +1296,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
 }
 
 .risk-badge {
@@ -1093,7 +1339,7 @@ onMounted(async () => {
 
 .risk-updated {
   font-size: 12px;
-  color: #999;
+  color: #337ecc;
   margin-top: 4px;
 }
 
@@ -1102,6 +1348,7 @@ onMounted(async () => {
   font-size: 14px;
   color: #555;
   line-height: 1.6;
+  margin-left: 16px;
 }
 .risk-summary2 {
   margin: 0 0 12px;
@@ -1134,32 +1381,88 @@ onMounted(async () => {
 
 .risk-factors {
   border-top: 1px solid #f0f2f4;
-  padding-top: 12px;
+  margin-top: 6px;
+  padding-top: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .risk-factor {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 4px 6px 0;
+  border-bottom: 1px solid #f0f2f4;
+  margin-bottom: 0;
+  gap: 0;
   font-size: 13px;
-  margin-bottom: 8px;
+  align-items: center;
 }
 
 .risk-factor:last-child {
+  border-bottom: none;
   margin-bottom: 0;
 }
 
-.risk-factor-label {
-  flex: 1;
-  color: #333;
+.risk-factor-type {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-right: 12px;
+  margin-top: 2px;
+  max-width: 96px;
+  text-align: center;
+  line-height: 1.3;
 }
 
-.risk-factor-value {
+.risk-factor-type--0 {
+  background: #e8f4ff;
   color: #1677ff;
+}
+
+.risk-factor-type--1 {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.risk-factor-type--2 {
+  background: #f3e8ff;
+  color: #7b1fa2;
+}
+
+.risk-factor-type--3 {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.risk-factor-type--4 {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.risk-factor-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.risk-factor-summary {
+  margin: 0;
+  font-size: 14px;
+  color: #529b2e;
+  line-height: 1.55;
+  word-break: break-word;
   font-weight: 600;
 }
 
-.risk-factor-source {
+.risk-factor-time {
+  margin: 6px 10px 0 0;
   font-size: 12px;
   color: #aaa;
 }
@@ -1236,6 +1539,10 @@ onMounted(async () => {
 
 .forecast-bar-high {
   background: linear-gradient(90deg, #ff7875, #f5222d);
+}
+
+.forecast-bar-steps {
+  background: linear-gradient(90deg, #69c0ff, #1890ff);
 }
 
 .forecast-score,

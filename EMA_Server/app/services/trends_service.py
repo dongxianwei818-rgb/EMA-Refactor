@@ -8,11 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import models_for
 from app.services.behavior_prediction_service import build_behavior_prediction_trend
 from app.services.modality_prediction_service import build_modality_prediction_trend
-from app.services.risk_service import (
-    compute_risk_assessment,
-    load_risk_assessment_from_snapshots,
-    refresh_risk_alerts,
-)
+from app.services.risk_service import compute_risk_assessment
 
 
 def _date_keys(days: int) -> list[str]:
@@ -346,11 +342,8 @@ def get_trends_overview(db: Session, user, days: int = 7) -> dict[str, Any]:
     steps_trend = _build_steps_trend(steps_hist, date_keys)
     has_data = any(day["hasData"] for day in questionnaire_days) or any(item["hasData"] for item in steps_trend)
 
-    risk = load_risk_assessment_from_snapshots(db, user.id, user=user)
-    if not risk:
-        risk = compute_risk_assessment(db, user, save_snapshot=False)
-    else:
-        risk = refresh_risk_alerts(db, user, risk)
+    # 趋势页实时重算，避免沿用快照中的旧分档阈值
+    risk = compute_risk_assessment(db, user, save_snapshot=False)
 
     modality_forecast = build_modality_prediction_trend(db, user, days=days)
     behavior_forecast = build_behavior_prediction_trend(db, user, days=days)
