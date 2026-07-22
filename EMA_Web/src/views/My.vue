@@ -11,9 +11,7 @@
         </div>
 
         <template v-if="hasBaselineBound">
-          <div v-if="researchId" class="profile-id">
-            研究编号 {{ researchId }}
-          </div>
+          <div class="profile-id">用户名：{{ userName }}</div>
           <div class="kv-list">
             <div
               v-for="(item, idx) in basicInfo"
@@ -102,6 +100,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import {
   clearAuth,
   ensureLogin,
+  getUserName,
   isAdmin,
   logout as logoutSession,
 } from "../api/auth";
@@ -135,6 +134,10 @@ const isAdminUser = ref(false);
 
 const researchId = computed(
   () => profile.value.researchId || profile.value.research_id || "",
+);
+const userName = computed(
+  () =>
+    profile.value.userName || profile.value.user_name || getUserName() || "—",
 );
 const checkinHoursText = computed(() => {
   const hours = stats.value.checkinHours || [];
@@ -195,6 +198,12 @@ function applyProfile(local) {
     ...local,
     researchId:
       local.researchId || local.research_id || server.research_id || "",
+    userName:
+      local.userName ||
+      local.user_name ||
+      server.user_name ||
+      getUserName() ||
+      "",
   };
   profile.value = p;
   basicInfo.value = buildBasicSummary(p);
@@ -425,6 +434,12 @@ onMounted(async () => {
   text-align: center;
   line-height: 1.3;
   max-width: 120px;
+}
+
+.kv-card .label-researchId,
+.kv-card .label-openCount {
+  background: #ebe8ff;
+  color: #df16ff;
 }
 
 .kv-card .label-age,

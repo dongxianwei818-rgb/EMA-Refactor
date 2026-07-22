@@ -12,7 +12,7 @@
             :key="tab.path"
             :to="tab.path"
             class="tab-item"
-            active-class="is-active"
+            :class="{ 'is-active': isTabActive(tab.path) }"
           >
             <el-icon :size="16">
               <component :is="tab.icon" />
@@ -76,9 +76,31 @@ const loggingOut = ref(false);
 const visibleTabs = computed(() => (isAdmin() ? adminTabs : userTabs));
 const currentTitle = computed(() => {
   if (isAdmin() && route.name === "trends") return "趋势分析";
+  if (isAdmin() && route.name === "admin-user-trends") return "用户趋势详情";
+  if (isAdmin() && route.name === "risk") return "风险预警";
+  if (isAdmin() && route.name === "admin-user-risk") return "用户风险预警详情";
   return route.meta.title || "EMA";
 });
-const isWide = computed(() => route.name === "users");
+const isWide = computed(
+  () =>
+    route.name === "users" ||
+    route.name === "trends" ||
+    route.name === "admin-user-trends" ||
+    route.name === "risk" ||
+    route.name === "admin-user-risk",
+);
+
+function isTabActive(path) {
+  if (path === "/trends") {
+    return (
+      route.path === "/trends" || route.path.startsWith("/trends/")
+    );
+  }
+  if (path === "/risk") {
+    return route.path === "/risk" || route.path.startsWith("/risk/");
+  }
+  return route.path === path || route.path.startsWith(`${path}/`);
+}
 
 async function onLogout() {
   if (loggingOut.value) return;

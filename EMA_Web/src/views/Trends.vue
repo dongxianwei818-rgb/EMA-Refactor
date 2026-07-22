@@ -29,6 +29,9 @@
               <span class="modality-summary-low">低风险：0–4</span>
               <span class="modality-summary-medium">中等关注：5–9</span>
               <span class="modality-summary-high">需重点关注：10–15</span>
+              <div class="modality-summary-critical">
+                另：基线自伤阳性或当日消极想法为「是」时，将强制判定为需重点关注。
+              </div>
             </div>
             <div style="opacity: 0.88">
               <p style="margin: 3px 0; font-size: 13px">
@@ -52,9 +55,14 @@
             <div class="risk-card-head">
               <h3 class="section-title">当前风险评估</h3>
               <div class="risk-level-row">
-                <span class="risk-badge" :class="current.levelClass">{{
-                  current.levelLabel
-                }}</span>
+                <div class="risk-badge-wrap">
+                  <span class="risk-badge" :class="current.levelClass">{{
+                    current.levelLabel
+                  }}</span>
+                  <span v-if="current.criticalForced" class="critical-force-tag"
+                    >关键强制</span
+                  >
+                </div>
                 <div class="risk-meta">
                   <span
                     class="risk-score"
@@ -73,13 +81,25 @@
                   }}</span>
                 </div>
               </div>
+              <div v-if="current.criticalForced" class="critical-force-banner">
+                <div class="critical-force-title">
+                  因关键信号强制判定为「需重点关注」
+                </div>
+                <div class="critical-force-desc">
+                  指数分档本为「{{
+                    current.scoreBasedLevelLabel || "—"
+                  }}」（指数 {{ current.score ?? "--" }}）；触发原因：{{
+                    (current.criticalReasons || []).join("、") || "关键信号"
+                  }}
+                </div>
+              </div>
               <p
                 class="risk-summary"
                 :style="{
                   color:
-                    current.score >= 10
+                    current.level === 'high'
                       ? '#f5222d'
-                      : current.score >= 5
+                      : current.level === 'medium'
                         ? '#faad14'
                         : '#52c41a',
                 }"
@@ -124,7 +144,9 @@
               {{ forecast.peakLevelLabel || "待评估" }}
             </span>
           </div>
-          <p class="risk-summary">{{ forecast.summary || "" }}</p>
+          <p class="risk-summary" style="color: #faad14; margin-left: 0">
+            {{ forecast.summary || "" }}
+          </p>
           <div v-if="forecast.days?.length" class="forecast-chart">
             <div
               v-for="day in forecast.days"
@@ -172,40 +194,148 @@
               >
                 留意 {{ risk.alertWarnCount }}
               </span>
+              <span
+                v-if="risk.alertInfoCount"
+                class="alert-summary-chip alert-summary-info"
+              >
+                提示 {{ risk.alertInfoCount }}
+              </span>
+            </div>
+            <div v-if="alertCategoryTabs.length > 1" class="alert-cat-tabs">
+              <button
+                type="button"
+                class="alert-cat-tab"
+                :class="{ 'is-active': alertCategoryFilter === '' }"
+                @click="alertCategoryFilter = ''"
+              >
+                全部
+              </button>
+              <button
+                v-for="cat in alertCategoryTabs"
+                :key="cat"
+                type="button"
+                class="alert-cat-tab"
+                :class="{ 'is-active': alertCategoryFilter === cat }"
+                @click="alertCategoryFilter = cat"
+              >
+                {{ cat }}
+                <em>{{ alertCategoryCounts[cat] || 0 }}</em>
+              </button>
             </div>
             <div class="alert-list">
-              <div
-                v-for="item in risk.alerts || []"
-                :key="item.id"
-                class="alert-item"
-                :class="`alert-${item.level}`"
-              >
-                <div class="alert-item-head">
-                  <span class="alert-level-tag">{{
-                    item.levelLabel ||
-                    (item.level === "danger" ? "重点关注" : "需留意")
-                  }}</span>
-                  <span v-if="item.category" class="alert-category">{{
-                    item.category
-                  }}</span>
+              <template v-for="group in groupedAlerts" :key="group.category">
+                <div class="alert-group-title">{{ group.category }}</div>
+                <div
+                  v-for="item in group.items"
+                  :key="item.id"
+                  class="alert-item"
+                  :class="`alert-${item.level}`"
+                >
+                  <div class="alert-item-head">
+                    <span class="alert-level-tag">{{
+                      item.levelLabel ||
+                      (item.level === "danger"
+                        ? "重点关注"
+                        : item.level === "info"
+                          ? "提示"
+                          : "需留意")
+                    }}</span>
+                    <span v-if="item.category" class="alert-category">{{
+                      item.category
+                    }}</span>
+                  </div>
+                  <div class="alert-title">{{ item.title }}</div>
+                  <div class="alert-desc">{{ item.desc }}</div>
+                  <div v-if="item.metric || item.source" class="alert-meta">
+                    <span v-if="item.metric" class="alert-metric">{{
+                      item.metric
+                    }}</span>
+                    <span v-if="item.source" class="alert-source">{{
+                      item.source
+                    }}</span>
+                  </div>
                 </div>
-                <div class="alert-title">{{ item.title }}</div>
-                <div class="alert-desc">{{ item.desc }}</div>
-                <div v-if="item.metric || item.source" class="alert-meta">
-                  <span v-if="item.metric" class="alert-metric">{{
-                    item.metric
-                  }}</span>
-                  <span v-if="item.source" class="alert-source">{{
-                    item.source
-                  }}</span>
-                </div>
-              </div>
+              </template>
             </div>
           </template>
         </section>
 
-        <section class="trends-section card record-card">
-          <span class="panel-tag panel-tag--record">04</span>
+        <section class="trends-section card forecast30-card">
+          <span class="panel-tag panel-tag--forecast30">04</span>
+          <h3 class="section-title">未来 30 天预警</h3>
+          <div class="forecast-head">
+            <div class="forecast-trend">
+              <span class="forecast-trend-label">月度走向</span>
+              <span class="forecast-trend-value">{{
+                forecast30.trendLabel || "—"
+              }}</span>
+            </div>
+            <span class="risk-badge" :class="forecast30.peakLevelClass">
+              {{ forecast30.peakLevelLabel || "待评估" }}
+            </span>
+          </div>
+          <p class="risk-summary" style="color: #cf1322; margin-left: 0">
+            {{ forecast30.summary || "" }}
+          </p>
+          <div class="forecast30-stats">
+            <span
+              >重点天数 <em>{{ forecast30.highRiskDays || 0 }}</em></span
+            >
+            <span
+              >中等天数 <em>{{ forecast30.mediumRiskDays || 0 }}</em></span
+            >
+            <span
+              >前瞻预警 <em>{{ risk.forecastAlertCount || 0 }}</em></span
+            >
+          </div>
+          <div v-if="forecast30.weeks?.length" class="forecast-chart">
+            <div
+              v-for="week in forecast30.weeks"
+              :key="week.weekIndex"
+              class="forecast-day"
+            >
+              <span class="forecast-date">{{ week.label }}</span>
+              <div class="forecast-bar-wrap">
+                <div
+                  class="forecast-bar"
+                  :class="`forecast-bar-${week.level}`"
+                  :style="{ width: `${week.barWidth || 0}%` }"
+                />
+              </div>
+              <span class="forecast-score">{{ week.avgScore }}</span>
+            </div>
+          </div>
+          <div class="forecast-legend">
+            <span class="legend-item legend-low">低</span>
+            <span class="legend-item legend-medium">中</span>
+            <span class="legend-item legend-high">高</span>
+          </div>
+          <div v-if="forecastAlerts.length" class="forecast30-alerts">
+            <div class="alert-group-title">前瞻预警条目</div>
+            <div
+              v-for="item in forecastAlerts"
+              :key="item.id"
+              class="alert-item"
+              :class="`alert-${item.level}`"
+            >
+              <div class="alert-item-head">
+                <span class="alert-level-tag">{{
+                  item.levelLabel ||
+                  (item.level === "danger" ? "重点关注" : "需留意")
+                }}</span>
+                <span v-if="item.metric" class="alert-category">{{
+                  item.metric
+                }}</span>
+              </div>
+              <div class="alert-title">{{ item.title }}</div>
+              <div class="alert-desc">{{ item.desc }}</div>
+            </div>
+          </div>
+          <p v-else class="risk-no-alert">暂无显著的未来 30 天预警信号。</p>
+        </section>
+
+        <section v-if="showRiskExtras" class="trends-section card record-card">
+          <span class="panel-tag panel-tag--record">06</span>
           <h3 class="section-title">打卡概况</h3>
           <div class="record-stats">
             <div
@@ -220,8 +350,108 @@
         </section>
       </div>
 
-      <section v-if="showRisk" class="trends-section card modality-card">
-        <span class="panel-tag panel-tag--modality">05</span>
+      <div v-if="showRisk && risk.hasAssessment" class="feature-alert-row">
+        <section class="trends-section card ema-feature-alert-card">
+          <span class="panel-tag panel-tag--ema-feat">04</span>
+          <h3 class="section-title">EMA五特性抽取风险预警</h3>
+          <p class="risk-summary" style="margin-left: 0">
+            基于问卷、日记、语音、视频、步数五项特征抽取结果生成的预警。
+          </p>
+          <div class="alert-summary">
+            <span class="alert-summary-total"
+              >共 {{ emaFeatureAlerts.length }} 条</span
+            >
+            <span
+              v-if="emaFeatureDangerCount"
+              class="alert-summary-chip alert-summary-danger"
+              >重点 {{ emaFeatureDangerCount }}</span
+            >
+            <span
+              v-if="emaFeatureWarnCount"
+              class="alert-summary-chip alert-summary-warn"
+              >留意 {{ emaFeatureWarnCount }}</span
+            >
+          </div>
+          <p v-if="!emaFeatureAlerts.length" class="risk-no-alert">
+            暂无五项特征抽取异常信号。
+          </p>
+          <div v-else class="alert-list">
+            <div
+              v-for="item in emaFeatureAlerts"
+              :key="item.id"
+              class="alert-item"
+              :class="`alert-${item.level}`"
+            >
+              <div class="alert-item-head">
+                <span class="alert-level-tag">{{
+                  item.levelLabel ||
+                  (item.level === "danger" ? "重点关注" : "需留意")
+                }}</span>
+                <span v-if="item.source" class="alert-category">{{
+                  item.source
+                }}</span>
+              </div>
+              <div class="alert-title">{{ item.title }}</div>
+              <div class="alert-desc">{{ item.desc }}</div>
+              <div v-if="item.metric" class="alert-meta">
+                <span class="alert-metric">{{ item.metric }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="trends-section card behavior-alert-card">
+          <span class="panel-tag panel-tag--behavior-alert">05</span>
+          <h3 class="section-title">用户行为分析风险预警</h3>
+          <p class="risk-summary" style="margin-left: 0">
+            基于打卡依从性、缺测、跳过、打开模式与节律等行为特征生成的预警。
+          </p>
+          <div class="alert-summary">
+            <span class="alert-summary-total"
+              >共 {{ behaviorAnalysisAlerts.length }} 条</span
+            >
+            <span
+              v-if="behaviorDangerCount"
+              class="alert-summary-chip alert-summary-danger"
+              >重点 {{ behaviorDangerCount }}</span
+            >
+            <span
+              v-if="behaviorWarnCount"
+              class="alert-summary-chip alert-summary-warn"
+              >留意 {{ behaviorWarnCount }}</span
+            >
+          </div>
+          <p v-if="!behaviorAnalysisAlerts.length" class="risk-no-alert">
+            暂无用户行为分析异常信号。
+          </p>
+          <div v-else class="alert-list">
+            <div
+              v-for="item in behaviorAnalysisAlerts"
+              :key="item.id"
+              class="alert-item"
+              :class="`alert-${item.level}`"
+            >
+              <div class="alert-item-head">
+                <span class="alert-level-tag">{{
+                  item.levelLabel ||
+                  (item.level === "danger" ? "重点关注" : "需留意")
+                }}</span>
+                <span v-if="item.source" class="alert-category">{{
+                  item.source
+                }}</span>
+              </div>
+              <div class="alert-title">{{ item.title }}</div>
+              <div class="alert-desc">{{ item.desc }}</div>
+              <div v-if="item.metric" class="alert-meta">
+                <span class="alert-metric">{{ item.metric }}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section v-if="showRiskExtras" class="trends-section card modality-card">
+        <span class="panel-tag panel-tag--modality">07</span>
         <h3 class="section-title">五项 EMA 特征预测趋势</h3>
         <div class="modality-summary">
           <div class="modality-summary-left">
@@ -364,8 +594,8 @@
         </p>
       </section>
 
-      <section v-if="showRisk" class="trends-section card behavior-card">
-        <span class="panel-tag panel-tag--behavior">06</span>
+      <section v-if="showRiskExtras" class="trends-section card behavior-card">
+        <span class="panel-tag panel-tag--behavior">08</span>
         <h3 class="section-title">行为特征预测趋势</h3>
         <div class="modality-summary">
           <div class="modality-summary-left">
@@ -608,14 +838,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { ensureLogin } from "../api/auth";
+import { fetchAdminUserRisk } from "../api/adminRisk";
+import { fetchAdminUserTrendsOverview } from "../api/adminTrends";
 import { fetchTrendsOverview } from "../api/ema";
 import { trackEvent } from "../utils/tracker";
 
 const props = defineProps({
   /** all | risk | history */
   mode: { type: String, default: "all" },
+  /** 管理员查看指定普通用户时传入 */
+  userId: { type: [Number, String], default: null },
 });
 
 const loading = ref(true);
@@ -628,13 +862,84 @@ const metrics = ref([]);
 const stepsTrend = ref([]);
 const stepsAnalytics = ref({});
 const stats = ref({});
+const alertCategoryFilter = ref("");
 
 const current = computed(() => risk.value?.current || {});
 const forecast = computed(() => risk.value?.forecast || {});
+const forecast30 = computed(() => risk.value?.forecast30 || {});
+const forecastAlerts = computed(() => risk.value?.forecastAlerts || []);
 const showRisk = computed(() => props.mode === "all" || props.mode === "risk");
+const showRiskExtras = computed(() => props.mode === "all");
 const showHistory = computed(
   () => props.mode === "all" || props.mode === "history",
 );
+
+const EMA_FEATURE_CAT = "EMA五特性抽取风险预警";
+const BEHAVIOR_ANALYSIS_CAT = "用户行为分析风险预警";
+
+const emaFeatureAlerts = computed(() =>
+  (risk.value?.alerts || []).filter(
+    (item) => (item.category || "") === EMA_FEATURE_CAT,
+  ),
+);
+const behaviorAnalysisAlerts = computed(() =>
+  (risk.value?.alerts || []).filter(
+    (item) => (item.category || "") === BEHAVIOR_ANALYSIS_CAT,
+  ),
+);
+const emaFeatureDangerCount = computed(
+  () => emaFeatureAlerts.value.filter((a) => a.level === "danger").length,
+);
+const emaFeatureWarnCount = computed(
+  () => emaFeatureAlerts.value.filter((a) => a.level === "warn").length,
+);
+const behaviorDangerCount = computed(
+  () =>
+    behaviorAnalysisAlerts.value.filter((a) => a.level === "danger").length,
+);
+const behaviorWarnCount = computed(
+  () => behaviorAnalysisAlerts.value.filter((a) => a.level === "warn").length,
+);
+
+const filteredAlerts = computed(() => {
+  const list = (risk.value?.alerts || []).filter((item) => {
+    const cat = item.category || "综合";
+    return cat !== EMA_FEATURE_CAT && cat !== BEHAVIOR_ANALYSIS_CAT;
+  });
+  if (!alertCategoryFilter.value) return list;
+  return list.filter(
+    (item) => (item.category || "综合") === alertCategoryFilter.value,
+  );
+});
+
+const alertCategoryCounts = computed(() => {
+  const counts = {};
+  for (const item of risk.value?.alerts || []) {
+    const cat = item.category || "综合";
+    if (cat === EMA_FEATURE_CAT || cat === BEHAVIOR_ANALYSIS_CAT) continue;
+    counts[cat] = (counts[cat] || 0) + 1;
+  }
+  return counts;
+});
+
+const alertCategoryTabs = computed(() => {
+  return Object.keys(alertCategoryCounts.value).sort();
+});
+
+const groupedAlerts = computed(() => {
+  const groups = [];
+  const map = new Map();
+  for (const item of filteredAlerts.value) {
+    const cat = item.category || "综合";
+    if (!map.has(cat)) {
+      const group = { category: cat, items: [] };
+      map.set(cat, group);
+      groups.push(group);
+    }
+    map.get(cat).items.push(item);
+  }
+  return groups;
+});
 
 function latestMetricPoint(metric) {
   const points = metric?.points || [];
@@ -859,15 +1164,20 @@ const recordStatItems = computed(() => {
 
 const summaryTitle = computed(() => {
   if (props.mode === "history") return "趋势分析";
+  if (props.mode === "risk") return "风险预警详情";
   return "心理健康趋势与风险";
 });
 
 const summarySub = computed(() => {
   if (props.mode === "history") return "EMA 指标 · 运动步数";
-  return "当前评估 · 未来预测 · 异常预警 · 行为特征预测 · 历史趋势";
+  if (props.mode === "risk") return "当前评估 · 未来预测 · 30天预警 · 五特性/行为预警";
+  return "当前评估 · 未来预测 · 五特性/行为预警 · 特征预测 · 历史趋势";
 });
 const summarySub2 = computed(() => {
   if (props.mode === "history") return "EMA 指标 · 运动步数";
+  if (props.mode === "risk") {
+    return "含 EMA 五特性抽取预警与用户行为分析预警，辅助识别重点关注信号";
+  }
   return "数字化 · AI 成为普惠服务核心载体</br> 需求分层清晰 · 细分赛道爆发</br> 开放能力 · 生态共建</br> 行业规范化洗牌 · 告别野蛮生长";
 });
 
@@ -876,14 +1186,36 @@ const summaryClass = computed(() => ({
   "trends-summary--history": props.mode === "history",
 }));
 
-onMounted(async () => {
+async function loadOverview() {
   loading.value = true;
+  error.value = "";
   try {
     await ensureLogin();
     trackEvent(props.mode === "risk" ? "risk" : "trends", "view");
-    const data = await fetchTrendsOverview(7);
+    const targetId =
+      props.userId != null && props.userId !== "" ? Number(props.userId) : null;
+    const isAdminTarget = targetId && !Number.isNaN(targetId);
+
+    if (isAdminTarget && props.mode === "risk") {
+      const data = await fetchAdminUserRisk(targetId);
+      hasData.value = !!data?.risk?.hasAssessment;
+      risk.value = data?.risk || {};
+      alertCategoryFilter.value = "";
+      modalityForecast.value = {};
+      behaviorForecast.value = {};
+      metrics.value = [];
+      stepsTrend.value = [];
+      stepsAnalytics.value = {};
+      stats.value = {};
+      return;
+    }
+
+    const data = isAdminTarget
+      ? await fetchAdminUserTrendsOverview(targetId, 7)
+      : await fetchTrendsOverview(7);
     hasData.value = !!(data && (data.hasData || data.has_data));
     risk.value = data?.risk || {};
+    alertCategoryFilter.value = "";
     modalityForecast.value =
       data?.modalityForecast || data?.modality_forecast || {};
     behaviorForecast.value =
@@ -897,7 +1229,15 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+
+onMounted(loadOverview);
+watch(
+  () => props.userId,
+  () => {
+    loadOverview();
+  },
+);
 </script>
 
 <style scoped>
@@ -958,7 +1298,7 @@ onMounted(async () => {
 
 .trends-detail-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
   margin-bottom: 16px;
   align-items: stretch;
@@ -966,7 +1306,8 @@ onMounted(async () => {
 
 .trends-detail-row .trends-section {
   margin-bottom: 0;
-  height: 100%;
+  /* max-height: 500px;
+  overflow: auto; */
   min-width: 0;
 }
 
@@ -997,7 +1338,7 @@ onMounted(async () => {
 }
 
 .trends-summary--risk {
-  background: linear-gradient(135deg, #cf1322 0%, #a8071a 100%);
+  background: linear-gradient(135deg, #1677ff 0%, #078da8 100%);
   box-shadow: 0 8px 24px rgba(207, 19, 34, 0.22);
 }
 
@@ -1146,8 +1487,71 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
+.feature-alert-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: stretch;
+}
+
+.feature-alert-row .trends-section {
+  margin-bottom: 0;
+}
+
+.ema-feature-alert-card {
+  border-left: 4px solid #531dab;
+}
+
+.panel-tag--ema-feat {
+  background: #531dab;
+}
+
+.behavior-alert-card {
+  border-left: 4px solid #08979c;
+}
+
+.panel-tag--behavior-alert {
+  background: #08979c;
+}
+
+.feature-alert-row .alert-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
 .forecast-card {
   border-left: 4px solid #722ed1;
+}
+
+.forecast30-card {
+  border-left: 4px solid #eb2f96;
+}
+
+.panel-tag--forecast30 {
+  background: #eb2f96;
+}
+
+.forecast30-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0 12px;
+  font-size: 13px;
+  color: #595959;
+}
+
+.forecast30-stats em {
+  font-style: normal;
+  font-weight: 700;
+  color: #cf1322;
+  margin-left: 4px;
+}
+
+.forecast30-alerts {
+  margin-top: 12px;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .alert-card {
@@ -1306,6 +1710,43 @@ onMounted(async () => {
   line-height: 1.3;
 }
 
+.risk-badge-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.critical-force-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a8071a;
+  background: #ffccc7;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.critical-force-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f0;
+  border: 1px solid #ffccc7;
+}
+
+.critical-force-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #cf1322;
+  margin-bottom: 4px;
+}
+
+.critical-force-desc {
+  font-size: 12px;
+  color: #a8071a;
+  line-height: 1.5;
+}
+
 .risk-low {
   background: #e8f8ee;
   color: #07c160;
@@ -1378,6 +1819,11 @@ onMounted(async () => {
   padding: 4px 12px;
   border-radius: 12px;
 }
+.modality-summary-critical {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #ecb9f6;
+}
 
 .risk-factors {
   border-top: 1px solid #f0f2f4;
@@ -1414,7 +1860,7 @@ onMounted(async () => {
   border-radius: 6px;
   margin-right: 12px;
   margin-top: 2px;
-  max-width: 96px;
+  width: 120px;
   text-align: center;
   line-height: 1.3;
 }
@@ -1591,7 +2037,7 @@ onMounted(async () => {
 }
 
 .alert-list {
-  max-height: 360px;
+  max-height: 490px;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -1627,6 +2073,49 @@ onMounted(async () => {
   color: #d48806;
 }
 
+.alert-summary-info {
+  background: #f0f5ff;
+  color: #2f54eb;
+}
+
+.alert-cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.alert-cat-tab {
+  border: 1px solid #e8e8e8;
+  background: #fafafa;
+  color: #595959;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.alert-cat-tab em {
+  font-style: normal;
+  margin-left: 4px;
+  color: #8c8c8c;
+}
+
+.alert-cat-tab.is-active {
+  border-color: #ffccc7;
+  background: #fff1f0;
+  color: #cf1322;
+  font-weight: 700;
+}
+
+.alert-group-title {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8c8c8c;
+  letter-spacing: 0.02em;
+}
+
 .alert-item {
   padding: 12px 14px;
   border-radius: 10px;
@@ -1657,6 +2146,11 @@ onMounted(async () => {
 .alert-warn .alert-level-tag {
   background: #ffe58f;
   color: #ad6800;
+}
+
+.alert-info .alert-level-tag {
+  background: #adc6ff;
+  color: #1d39c4;
 }
 
 .alert-category {
@@ -1707,6 +2201,11 @@ onMounted(async () => {
   border: 1px solid #ffccc7;
 }
 
+.alert-info {
+  background: #f0f5ff;
+  border: 1px solid #adc6ff;
+}
+
 .alert-title {
   font-size: 14px;
   font-weight: 600;
@@ -1719,6 +2218,10 @@ onMounted(async () => {
 
 .alert-danger .alert-title {
   color: #cf1322;
+}
+
+.alert-info .alert-title {
+  color: #2f54eb;
 }
 
 .alert-desc {
@@ -1742,7 +2245,6 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 10px;
-  max-height: 360px;
   overflow-y: auto;
 }
 

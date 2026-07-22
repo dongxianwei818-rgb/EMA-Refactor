@@ -10,6 +10,15 @@ from app.schemas import (
     WebUserCreateRequest,
     WebUserUpdateRequest,
 )
+from app.services.admin_risk_service import (
+    get_user_risk_warning,
+    list_user_risk_options,
+    list_user_risk_warnings,
+)
+from app.services.admin_trends_service import (
+    get_user_trends_overview,
+    list_user_trend_summaries,
+)
 from app.services.feedback_service import create_feedback_record
 from app.services.web_user_admin_service import (
     create_user,
@@ -166,3 +175,104 @@ def web_users_delete(
         return ApiResponse(data=data, message="用户已删除")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
+    "/trends/users",
+    response_model=ApiResponse,
+    summary="普通用户趋势分析列表",
+    description="按风险指数从高到低返回普通用户趋势摘要，供管理员总览。",
+)
+def web_trends_users_list(
+    keyword: str | None = Query(default=None, description="用户名/研究编号模糊搜索"),
+    study_status: str | None = Query(default=None, description="研究状态"),
+    level: str | None = Query(default=None, description="风险等级：high/medium/low/unknown"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_web_db),
+    _admin=Depends(get_current_web_admin),
+):
+    data = list_user_trend_summaries(
+        db,
+        keyword=keyword,
+        study_status=study_status,
+        level=level,
+        page=page,
+        page_size=page_size,
+    )
+    return ApiResponse(data=data)
+
+
+@router.get(
+    "/trends/users/{user_id}/overview",
+    response_model=ApiResponse,
+    summary="指定用户趋势分析详情",
+    description="管理员查看某一普通用户的完整趋势概览（风险/特征/历史）。",
+)
+def web_trends_user_overview(
+    user_id: int,
+    days: int = Query(default=7, ge=1, le=30),
+    db: Session = Depends(get_web_db),
+    _admin=Depends(get_current_web_admin),
+):
+    try:
+        return ApiResponse(data=get_user_trends_overview(db, user_id, days=days))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/risk/users",
+    response_model=ApiResponse,
+    summary="普通用户风险预警列表",
+    description="按风险等级严重程度从高到低返回普通用户风险预警摘要。",
+)
+def web_risk_users_list(
+    keyword: str | None = Query(default=None, description="用户名/研究编号模糊搜索"),
+    study_status: str | None = Query(default=None, description="研究状态"),
+    level: str | None = Query(default=None, description="风险等级：high/medium/low/unknown"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_web_db),
+    _admin=Depends(get_current_web_admin),
+):
+    data = list_user_risk_warnings(
+        db,
+        keyword=keyword,
+        study_status=study_status,
+        level=level,
+        page=page,
+        page_size=page_size,
+    )
+    return ApiResponse(data=data)
+
+
+@router.get(
+    "/risk/users/options",
+    response_model=ApiResponse,
+    summary="风险预警用户切换列表",
+    description="返回可切换查看的普通用户简表（按风险等级排序）。",
+)
+def web_risk_users_options(
+    exclude_user_id: int | None = Query(default=None, description="排除当前用户"),
+    db: Session = Depends(get_web_db),
+    _admin=Depends(get_current_web_admin),
+):
+    return ApiResponse(data=list_user_risk_options(db, exclude_user_id=exclude_user_id))
+
+
+@router.get(
+    "/risk/users/{user_id}",
+    response_model=ApiResponse,
+    summary="指定用户风险预警详情",
+    description="管理员查看某一普通用户的完整风险预警数据。",
+)
+def web_risk_user_detail(
+    user_id: int,
+    db: Session = Depends(get_web_db),
+    _admin=Depends(get_current_web_admin),
+):
+    try:
+        return ApiResponse(data=get_user_risk_warning(db, user_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

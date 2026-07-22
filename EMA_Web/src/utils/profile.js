@@ -27,17 +27,21 @@ function collectSectionRows(section, profile) {
   return rows
 }
 
-/** 「我的」页摘要：年龄/年级等基本信息（不含研究编号，研究编号单独展示） */
+/** 「我的」页摘要：研究编号 + 年龄/年级等基本信息 */
 export function buildBasicSummary(profile) {
   const section = BASELINE_SECTIONS.find((s) => s.id === 'basic')
   if (!section?.fields) return []
-  const order = ['age', 'grade', 'major', 'gender', 'onlyChild', 'housing']
+  const order = ['researchId', 'age', 'grade', 'major', 'gender', 'onlyChild', 'housing']
   const byId = Object.fromEntries(section.fields.map((f) => [f.id, f]))
+  const normalized = {
+    ...profile,
+    researchId: profile.researchId || profile.research_id || '',
+  }
   const rows = []
   order.forEach((id) => {
     const field = byId[id]
     if (!field) return
-    const val = profile[id]
+    const val = normalized[id]
     if (val !== undefined && val !== null && val !== '') {
       rows.push({ id, label: field.label, value: val })
     }

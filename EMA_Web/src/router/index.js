@@ -12,7 +12,10 @@ const MainLayout = () => import("../layouts/MainLayout.vue");
 const TaskShell = () => import("../layouts/TaskShell.vue");
 const Home = () => import("../views/Home.vue");
 const Records = () => import("../views/Records.vue");
-const Trends = () => import("../views/Trends.vue");
+const TrendsEntry = () => import("../views/TrendsEntry.vue");
+const AdminUserTrends = () => import("../views/admin/AdminUserTrends.vue");
+const AdminRiskList = () => import("../views/admin/AdminRiskList.vue");
+const AdminUserRisk = () => import("../views/admin/AdminUserRisk.vue");
 const Chat = () => import("../views/Chat.vue");
 const Resources = () => import("../views/Resources.vue");
 const My = () => import("../views/My.vue");
@@ -78,16 +81,34 @@ const routes = [
       {
         path: "trends",
         name: "trends",
-        component: Trends,
-        props: () => ({ mode: isAdmin() ? "history" : "all" }),
+        component: TrendsEntry,
         meta: { requiresAuth: true, requiresConsent: true, title: "趋势分析" },
+      },
+      {
+        path: "trends/users/:userId",
+        name: "admin-user-trends",
+        component: AdminUserTrends,
+        meta: {
+          requiresAuth: true,
+          requiresAdmin: true,
+          title: "用户趋势详情",
+        },
       },
       {
         path: "risk",
         name: "risk",
-        component: Trends,
-        props: { mode: "risk" },
-        meta: { requiresAuth: true, requiresAdmin: true, title: "风险分析" },
+        component: AdminRiskList,
+        meta: { requiresAuth: true, requiresAdmin: true, title: "风险预警" },
+      },
+      {
+        path: "risk/users/:userId",
+        name: "admin-user-risk",
+        component: AdminUserRisk,
+        meta: {
+          requiresAuth: true,
+          requiresAdmin: true,
+          title: "用户风险预警详情",
+        },
       },
       {
         path: "chat",
