@@ -302,14 +302,19 @@ Page({
     if (that.data.submitting) return;
     that.setData({ phase: "submitting", recordText: "提交中…" });
     var at = Date.now();
+    that.setData({ submitting: true, phase: "submitting", recordText: "提交中…" });
     ema.markTaskDone("video");
     ema.markVideoDone();
-    ema.saveSubmission("video", {
-      path: tempFilePath || "local-pending",
-      hideFace: that.data.hideFace,
-      question: that.data.question,
-      duration: duration,
-    });
+    ema.saveSubmission(
+      "video",
+      {
+        path: tempFilePath || "local-pending",
+        hideFace: that.data.hideFace,
+        question: that.data.question,
+        duration: duration,
+      },
+      { at: at }
+    );
     tracker.endTaskTimer("video");
     tracker.trackEvent("video", "submit", {
       hideFace: that.data.hideFace,
@@ -339,7 +344,8 @@ Page({
     if (this.data.submitting || this.data.phase === "submitting") return;
     var that = this;
     var at = Date.now();
-    ema.markVideoSkipped({ reason: "user_skip" });
+    that.setData({ submitting: true });
+    ema.markVideoSkipped({ reason: "user_skip", at: at });
     tracker.trackEvent("video", "skip_video", { at: at });
     tracker.endTaskTimer("video");
     emaFlow.runStepSubmit({

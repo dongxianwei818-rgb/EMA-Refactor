@@ -116,13 +116,18 @@ Page({
     var n = Number(steps);
     var at = Date.now();
     var source = this.data.stepSource || "manual";
+    that.setData({ submitting: true });
     ema.saveStepsHistory(n);
     ema.markTaskDone("steps");
-    ema.saveSubmission("steps", {
-      steps: n,
-      source: source,
-      analytics: ema.getStepsAnalytics(),
-    });
+    ema.saveSubmission(
+      "steps",
+      {
+        steps: n,
+        source: source,
+        analytics: ema.getStepsAnalytics(),
+      },
+      { at: at }
+    );
     tracker.endTaskTimer("steps");
     tracker.trackEvent("steps", "submit", { steps: n });
     emaFlow.runStepSubmit({

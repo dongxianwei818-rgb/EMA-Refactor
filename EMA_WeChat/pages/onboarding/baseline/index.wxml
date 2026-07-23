@@ -27,5 +27,8 @@
       </view>
     </view>
   </block>
-  <button class="btn-primary" bindtap="onSubmit">完成基线（仅采集一次）</button>
+  <view class="baseline-submit">
+    <button class="btn-primary baseline-submit-btn" bindtap="onSubmit">完成基线采集</button>
+    <view class="baseline-submit-hint">仅采集一次</view>
+  </view>
 </view>

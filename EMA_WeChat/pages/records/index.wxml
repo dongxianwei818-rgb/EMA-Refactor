@@ -25,12 +25,31 @@
     </view>
 
     <view class="session-body" wx:if="{{expandedKey === item.key}}">
-      <view class="record-item" wx:for="{{item.items}}" wx:for-item="record" wx:key="id">
-        <view class="record-item-type type-{{record.type}}">{{record.typeLabel}}</view>
-        <view class="record-item-main">
+      <view
+        class="record-item {{record.type === 'questionnaire' && record.answerRows.length ? 'record-item--questionnaire' : ''}}"
+        wx:for="{{item.items}}"
+        wx:for-item="record"
+        wx:key="id"
+      >
+        <view class="record-item-head">
+          <view class="record-item-type type-{{record.type}}">{{record.typeLabel}}</view>
           <view class="record-item-summary">{{record.summary}}</view>
-          <view class="record-item-time">{{record.timeLabel}}</view>
         </view>
+
+        <view class="q-detail" wx:if="{{record.type === 'questionnaire' && record.answerRows.length}}">
+          <view
+            class="q-detail-row {{idx === record.answerRows.length - 1 ? 'is-last' : ''}}"
+            wx:for="{{record.answerRows}}"
+            wx:for-item="row"
+            wx:for-index="idx"
+            wx:key="id"
+          >
+            <text class="q-detail-label">{{row.label}}</text>
+            <text class="q-detail-value">{{row.value}}</text>
+          </view>
+        </view>
+
+        <view class="record-item-time">{{record.timeLabel}}</view>
       </view>
     </view>
   </view>

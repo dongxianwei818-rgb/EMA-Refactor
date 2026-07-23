@@ -316,7 +316,7 @@ function markTaskDone(task) {
 
 function recordSkip(type, extra) {
   ensureCheckinSession();
-  var at = Date.now();
+  var at = (extra && extra.at) || Date.now();
   var listKey = type === "video" ? "videoSkips" : "voiceSkips";
   var list = normalizeSkipList(getStore()[listKey]);
   list.unshift({
@@ -357,6 +357,7 @@ function markVideoSkipped(extra) {
     { skip: true, reason: (extra && extra.reason) || "skip" },
     { at: at }
   );
+  return at;
 }
 
 function markVoiceSkipped(extra) {
@@ -371,6 +372,7 @@ function markVoiceSkipped(extra) {
     { skip: true, reason: (extra && extra.reason) || "skip" },
     { at: at }
   );
+  return at;
 }
 
 function saveSubmission(type, payload, meta) {

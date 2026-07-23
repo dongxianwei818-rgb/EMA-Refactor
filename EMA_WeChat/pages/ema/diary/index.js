@@ -32,11 +32,16 @@ Page({
     if (!this.data.valid || this.data.submitting) return;
     var that = this;
     var at = Date.now();
+    that.setData({ submitting: true });
     ema.markTaskDone("diary");
-    ema.saveSubmission("diary", {
-      text: that.data.text,
-      prompt: that.data.prompt,
-    });
+    ema.saveSubmission(
+      "diary",
+      {
+        text: that.data.text,
+        prompt: that.data.prompt,
+      },
+      { at: at }
+    );
     tracker.endTaskTimer("diary");
     tracker.trackEvent("diary", "submit", { length: that.data.len });
     emaFlow.runStepSubmit({

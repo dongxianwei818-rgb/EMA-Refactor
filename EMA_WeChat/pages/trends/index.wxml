@@ -21,9 +21,9 @@
       <view class="risk-summary">{{risk.current.summary}}</view>
       <view class="risk-factors" wx:if="{{risk.current.factors.length > 0}}">
         <view class="risk-factor" wx:for="{{risk.current.factors}}" wx:key="label">
-          <text class="risk-factor-label">{{item.label}}</text>
+          <text class="risk-factor-label label-{{item.tagKey}}">{{item.label}}</text>
           <text class="risk-factor-value">{{item.value}}</text>
-          <text class="risk-factor-source">{{item.source}}</text>
+          <text class="risk-factor-source" wx:if="{{item.source}}">{{item.source}}</text>
         </view>
       </view>
     </view>

@@ -1,5 +1,6 @@
 var ema = require('../../utils/ema');
 var tracker = require('../../utils/tracker');
+var C = require('../../utils/constants');
 
 var LABELS = {
   questionnaire: 'EMA 问卷',
@@ -23,6 +24,19 @@ function formatTime(ts) {
   var h = d.getHours();
   var m = d.getMinutes();
   return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+}
+
+function buildQuestionnaireAnswers(payload) {
+  var answers = (payload && payload.answers) || {};
+  var rows = [];
+  (C.EMA_QUESTIONS || []).forEach(function (q) {
+    var raw = answers[q.id];
+    if (raw === undefined || raw === null || raw === '') return;
+    var value =
+      q.type === 'scale10' ? String(raw) + '/10' : String(raw);
+    rows.push({ id: q.id, label: q.label, value: value });
+  });
+  return rows;
 }
 
 function buildItemSummary(item) {
@@ -71,13 +85,18 @@ function groupSubmissions(list) {
       if (!g.startedAt || item.at < g.startedAt) g.startedAt = item.at;
       if (!g.endedAt || item.at > g.endedAt) g.endedAt = item.at;
     }
-    g.items.push({
+    var entry = {
       id: item.type + '_' + (item.at || 0),
       type: item.type,
       typeLabel: LABELS[item.type] || item.type,
       summary: buildItemSummary(item),
       timeLabel: formatTime(item.at),
-    });
+      answerRows: [],
+    };
+    if (item.type === 'questionnaire') {
+      entry.answerRows = buildQuestionnaireAnswers(item.payload || {});
+    }
+    g.items.push(entry);
   });
 
   var sessions = Object.keys(groups).map(function (k) {
@@ -102,6 +121,27 @@ function groupSubmissions(list) {
   return sessions;
 }
 
+function dedupeSubmissions(list) {
+  // 同一会话同类型只保留一条（取最新 at），避免本地暂存与接口/同步因 client_at 毫秒差产生的重复
+  var best = {};
+  (list || []).forEach(function (item) {
+    if (!item || !item.type) return;
+    var key =
+      item.type +
+      "|" +
+      (item.date || "") +
+      "|" +
+      (item.sessionId != null ? item.sessionId : 1);
+    var prev = best[key];
+    if (!prev || (item.at || 0) >= (prev.at || 0)) {
+      best[key] = item;
+    }
+  });
+  return Object.keys(best).map(function (k) {
+    return best[k];
+  });
+}
+
 function hasSkipRecord(list, type, date, sessionId) {
   for (var i = 0; i < list.length; i++) {
     var item = list[i];
@@ -119,11 +159,20 @@ function hasSkipRecord(list, type, date, sessionId) {
 }
 
 function mergeSkipRecords(list) {
-  var merged = list.slice();
+  var merged = dedupeSubmissions(list);
   ema.getVoiceSkips().forEach(function (item) {
     var date = item.date || ema.getTodayKey();
     var sessionId = item.sessionId || 1;
     if (hasSkipRecord(merged, 'voice', date, sessionId)) return;
+    // 同会话已有正式语音提交则不再补跳过占位
+    var hasVoice = merged.some(function (s) {
+      return (
+        s.type === 'voice' &&
+        s.date === date &&
+        (s.sessionId || 1) === sessionId
+      );
+    });
+    if (hasVoice) return;
     merged.push({
       type: 'voice',
       payload: { skip: true, reason: item.reason || 'skip' },
@@ -136,6 +185,14 @@ function mergeSkipRecords(list) {
     var date = item.date || ema.getTodayKey();
     var sessionId = item.sessionId || 1;
     if (hasSkipRecord(merged, 'video', date, sessionId)) return;
+    var hasVideo = merged.some(function (s) {
+      return (
+        s.type === 'video' &&
+        s.date === date &&
+        (s.sessionId || 1) === sessionId
+      );
+    });
+    if (hasVideo) return;
     merged.push({
       type: 'video',
       payload: { skip: true, reason: item.reason || 'skip' },
@@ -144,7 +201,7 @@ function mergeSkipRecords(list) {
       sessionId: sessionId,
     });
   });
-  return merged;
+  return dedupeSubmissions(merged);
 }
 
 Page({

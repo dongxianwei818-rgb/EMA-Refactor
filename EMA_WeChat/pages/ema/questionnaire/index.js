@@ -37,8 +37,9 @@ Page({
     }
     var sec = Math.round((Date.now() - that.data.startAt) / 1000);
     var at = Date.now();
+    that.setData({ submitting: true });
     ema.markTaskDone('questionnaire');
-    ema.saveSubmission('questionnaire', { answers: a, durationSec: sec });
+    ema.saveSubmission('questionnaire', { answers: a, durationSec: sec }, { at: at });
     tracker.endTaskTimer('questionnaire');
     tracker.trackEvent('questionnaire', 'submit', {
       durationSec: sec,

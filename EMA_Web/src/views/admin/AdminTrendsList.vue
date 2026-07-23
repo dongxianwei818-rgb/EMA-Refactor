@@ -92,11 +92,14 @@
       </div>
       <div v-else class="user-trend-list">
         <button
-          v-for="row in items"
+          v-for="(row, index) in items"
           :key="row.userId"
           type="button"
           class="user-trend-card"
-          :class="`level-${row.level || 'unknown'}`"
+          :class="[
+            `level-${row.level || 'unknown'}`,
+            `accent-${index % 10}`,
+          ]"
           @click="openDetail(row)"
         >
           <div class="card-top">
@@ -414,20 +417,35 @@ onMounted(loadList);
   transform: translateY(-1px);
 }
 
-.user-trend-card.level-high {
-  border-left-color: #cf1322;
+.user-trend-card.accent-0 {
+  border-left-color: #1677ff;
 }
-
-.user-trend-card.level-medium {
-  border-left-color: #d48806;
+.user-trend-card.accent-1 {
+  border-left-color: #fa8c16;
 }
-
-.user-trend-card.level-low {
+.user-trend-card.accent-2 {
+  border-left-color: #722ed1;
+}
+.user-trend-card.accent-3 {
+  border-left-color: #13c2c2;
+}
+.user-trend-card.accent-4 {
+  border-left-color: #eb2f96;
+}
+.user-trend-card.accent-5 {
   border-left-color: #52c41a;
 }
-
-.user-trend-card.level-unknown {
-  border-left-color: #bfbfbf;
+.user-trend-card.accent-6 {
+  border-left-color: #2f54eb;
+}
+.user-trend-card.accent-7 {
+  border-left-color: #fa541c;
+}
+.user-trend-card.accent-8 {
+  border-left-color: #a0d911;
+}
+.user-trend-card.accent-9 {
+  border-left-color: #f5222d;
 }
 
 .card-top {
@@ -447,8 +465,8 @@ onMounted(loadList);
 .user-meta {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
-  color: #999;
+  font-size: 16px;
+  color: #1677ff;
 }
 
 .risk-badge {
@@ -557,6 +575,7 @@ onMounted(loadList);
 .card-action {
   color: #1677ff;
   font-weight: 600;
+  font-size: 16px;
 }
 
 .pager {

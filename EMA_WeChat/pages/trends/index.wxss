@@ -466,37 +466,95 @@
 
 .risk-summary {
   font-size: 26rpx;
-  color: #555;
+  color: #ed5252;
   line-height: 1.6;
   margin-bottom: 16rpx;
 }
 
 .risk-factors {
   border-top: 1rpx solid #f0f2f4;
-  padding-top: 16rpx;
+  padding-top: 8rpx;
 }
 
 .risk-factor {
   display: flex;
   align-items: center;
   font-size: 24rpx;
-  margin-bottom: 10rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f0f2f4;
+}
+
+.risk-factor:last-child {
+  border-bottom: none;
 }
 
 .risk-factor-label {
-  flex: 1;
-  color: #333;
+  flex-shrink: 0;
+  min-width: 140rpx;
+  text-align: center;
+  font-size: 22rpx;
+  font-weight: 600;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  margin-right: 20rpx;
+  background: #f0f2f5;
+  color: #666;
+}
+
+.risk-factor-label.label-voice {
+  background: #e6f4ff;
+  color: #1677ff;
+}
+
+.risk-factor-label.label-video {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.risk-factor-label.label-behavior {
+  background: #f9f0ff;
+  color: #722ed1;
+}
+
+.risk-factor-label.label-questions {
+  background: #e8f4ff;
+  color: #1677ff;
+}
+
+.risk-factor-label.label-text {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.risk-factor-label.label-step {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.risk-factor-label.label-baseline {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.risk-factor-label.label-ema {
+  background: #e6fffb;
+  color: #13c2c2;
 }
 
 .risk-factor-value {
-  color: #1677ff;
+  color: #07c160;
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
   margin-right: 12rpx;
 }
 
 .risk-factor-source {
   font-size: 22rpx;
   color: #aaa;
+  flex-shrink: 0;
+  margin-left: auto;
+  text-align: right;
 }
 
 .risk-no-alert {

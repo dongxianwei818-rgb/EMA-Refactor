@@ -4,6 +4,31 @@ var trendsApi = require('../../utils/trends_api');
 
 var DAY_COUNT = 7;
 
+function factorTagKey(factor) {
+  var src = String((factor && factor.source) || '').toLowerCase();
+  var label = String((factor && factor.label) || '');
+  if (src.indexOf('voice') >= 0 || label.indexOf('语音') >= 0) return 'voice';
+  if (src.indexOf('video') >= 0 || label.indexOf('视频') >= 0) return 'video';
+  if (src.indexOf('behavior') >= 0 || label.indexOf('行为') >= 0) return 'behavior';
+  if (src.indexOf('question') >= 0 || label.indexOf('问卷') >= 0) return 'questions';
+  if (src.indexOf('text') >= 0 || label.indexOf('日记') >= 0 || label.indexOf('文本') >= 0) {
+    return 'text';
+  }
+  if (src.indexOf('step') >= 0 || label.indexOf('步数') >= 0) return 'step';
+  if (src.indexOf('baseline') >= 0 || label.indexOf('基线') >= 0) return 'baseline';
+  if (src.indexOf('ema') >= 0) return 'ema';
+  return 'default';
+}
+
+function enrichRiskFactors(risk) {
+  if (!risk || !risk.current) return risk;
+  var factors = risk.current.factors || [];
+  risk.current.factors = factors.map(function (f) {
+    return Object.assign({}, f, { tagKey: factorTagKey(f) });
+  });
+  return risk;
+}
+
 Page({
   data: {
     loading: false,
@@ -64,19 +89,19 @@ Page({
         var behaviorAnalysisAlerts = allAlerts.filter(function (a) {
           return (a.category || '') === BEH_CAT;
         });
-        // 个体异常预警面板排除已在 05/06 单独展示的特征类，避免重复
-        var otherAlerts = allAlerts.filter(function (a) {
-          var cat = a.category || '';
-          return cat !== EMA_CAT && cat !== BEH_CAT;
-        });
-        risk.alerts = otherAlerts;
-        risk.alertCount = otherAlerts.length;
-        risk.alertDangerCount = otherAlerts.filter(function (a) {
-          return a.level === 'danger';
-        }).length;
-        risk.alertWarnCount = otherAlerts.filter(function (a) {
-          return a.level === 'warn';
-        }).length;
+        // 个体异常预警展示全部类别（含特征/行为）；下方专项面板仍单独展示
+        if (risk.alertCount == null) risk.alertCount = allAlerts.length;
+        if (risk.alertDangerCount == null) {
+          risk.alertDangerCount = allAlerts.filter(function (a) {
+            return a.level === 'danger';
+          }).length;
+        }
+        if (risk.alertWarnCount == null) {
+          risk.alertWarnCount = allAlerts.filter(function (a) {
+            return a.level === 'warn';
+          }).length;
+        }
+        risk = enrichRiskFactors(risk);
 
         that.setData({
           loading: false,

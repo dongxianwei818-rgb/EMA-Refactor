@@ -922,21 +922,16 @@ const behaviorAnalysisAlerts = computed(() =>
     (item) => (item.category || "") === BEHAVIOR_ANALYSIS_CAT,
   ),
 );
-const otherAlerts = computed(() =>
-  (risk.value?.alerts || []).filter((item) => {
-    const cat = item.category || "";
-    return cat !== EMA_FEATURE_CAT && cat !== BEHAVIOR_ANALYSIS_CAT;
-  }),
-);
-const otherAlertCount = computed(() => otherAlerts.value.length);
+const allAlerts = computed(() => risk.value?.alerts || []);
+const otherAlertCount = computed(() => allAlerts.value.length);
 const otherAlertDangerCount = computed(
-  () => otherAlerts.value.filter((a) => a.level === "danger").length,
+  () => allAlerts.value.filter((a) => a.level === "danger").length,
 );
 const otherAlertWarnCount = computed(
-  () => otherAlerts.value.filter((a) => a.level === "warn").length,
+  () => allAlerts.value.filter((a) => a.level === "warn").length,
 );
 const otherAlertInfoCount = computed(
-  () => otherAlerts.value.filter((a) => a.level === "info").length,
+  () => allAlerts.value.filter((a) => a.level === "info").length,
 );
 const emaFeatureDangerCount = computed(
   () => emaFeatureAlerts.value.filter((a) => a.level === "danger").length,
@@ -952,7 +947,7 @@ const behaviorWarnCount = computed(
 );
 
 const filteredAlerts = computed(() => {
-  const list = otherAlerts.value.filter((item) => {
+  const list = allAlerts.value.filter((item) => {
     const cat = item.category || "综合";
     return cat;
   });
@@ -964,7 +959,7 @@ const filteredAlerts = computed(() => {
 
 const alertCategoryCounts = computed(() => {
   const counts = {};
-  for (const item of otherAlerts.value) {
+  for (const item of allAlerts.value) {
     const cat = item.category || "综合";
     counts[cat] = (counts[cat] || 0) + 1;
   }

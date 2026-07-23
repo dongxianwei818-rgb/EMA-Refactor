@@ -1,0 +1,18 @@
+.baseline-submit {
+  margin-top: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.baseline-submit-btn {
+  margin-top: 0 !important;
+  width: 100%;
+}
+
+.baseline-submit-hint {
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #07c160;
+  line-height: 1.5;
+  opacity: 0.85;
+}

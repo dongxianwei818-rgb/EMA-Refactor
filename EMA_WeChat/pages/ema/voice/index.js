@@ -232,12 +232,17 @@ Page({
     if (that.data.submitting) return;
     that.setData({ phase: "submitting", recordText: "提交中…" });
     var at = Date.now();
+    that.setData({ submitting: true, phase: "submitting", recordText: "提交中…" });
     ema.markTaskDone("voice");
-    ema.saveSubmission("voice", {
-      path: tempFilePath || "local-pending",
-      duration: duration,
-      prompt: that.data.prompt,
-    });
+    ema.saveSubmission(
+      "voice",
+      {
+        path: tempFilePath || "local-pending",
+        duration: duration,
+        prompt: that.data.prompt,
+      },
+      { at: at }
+    );
     tracker.endTaskTimer("voice");
     tracker.trackEvent("voice", "submit", { duration: duration });
     emaFlow.runStepSubmit({
@@ -264,7 +269,8 @@ Page({
     if (this.data.submitting || this.data.phase === "submitting") return;
     var that = this;
     var at = Date.now();
-    ema.markVoiceSkipped({ reason: "user_skip" });
+    that.setData({ submitting: true });
+    ema.markVoiceSkipped({ reason: "user_skip", at: at });
     tracker.trackEvent("voice", "skip_voice", { at: at });
     tracker.endTaskTimer("voice");
     emaFlow.runStepSubmit({
