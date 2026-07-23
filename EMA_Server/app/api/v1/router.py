@@ -12,6 +12,7 @@ from app.schemas import (
     ApiResponse,
     BaselineSubmitRequest,
     BehaviorTrackRequest,
+    ChangePasswordRequest,
     ChatSendRequest,
     CheckinSessionCompleteRequest,
     CheckinSessionStartRequest,
@@ -42,7 +43,13 @@ from app.services.analysis import (
     extract_video_features_for_video,
     extract_voice_features_for_voice,
 )
-from app.services.auth_service import password_login, record_user_login, record_user_logout, wx_login
+from app.services.auth_service import (
+    change_password,
+    password_login,
+    record_user_login,
+    record_user_logout,
+    wx_login,
+)
 from app.services.baseline_service import submit_baseline_log
 from app.services.behavior_service import record_behavior_event
 from app.services.chat_service import list_messages as list_chat_messages
@@ -114,6 +121,32 @@ def auth_password_login(body: PasswordLoginRequest):
     try:
         data = password_login(db, body.user_name, body.psw, body.client_type)
         return ApiResponse(data=data, message="登录成功")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        db.close()
+
+
+@router.post(
+    "/auth/change-password",
+    response_model=ApiResponse,
+    summary="Web 修改密码",
+    description=(
+        "登录页自助改密：校验用户名与原密码后更新新密码。"
+        "同名多轮参与记录会一并更新。无需先登录。"
+    ),
+)
+def auth_change_password(body: ChangePasswordRequest):
+    from app.client_types import set_current_client_type
+    from app.database import create_session
+
+    set_current_client_type(body.client_type)
+    db = create_session(body.client_type)
+    try:
+        data = change_password(
+            db, body.user_name, body.old_psw, body.new_psw, body.client_type
+        )
+        return ApiResponse(data=data, message="密码修改成功")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:

@@ -113,19 +113,56 @@ export async function loginWithPassword(user_name, psw) {
     flushPendingBehavior()
     return data
   } catch (err) {
-    if (err?.response) {
-      const detail = err.response.data?.detail
-      if (typeof detail === 'string') throw new Error(detail)
-      if (Array.isArray(detail)) {
-        const msg = detail.map((d) => d.msg || JSON.stringify(d)).join('；')
-        throw new Error(msg || '请求参数错误')
-      }
-      if (typeof err.response.data?.message === 'string') {
-        throw new Error(err.response.data.message)
-      }
-    }
-    throw err instanceof Error ? err : new Error(String(err))
+    throw normalizeAuthError(err, '登录失败')
   }
+}
+
+/** Web 登录页修改密码 → POST /auth/change-password（无需 token） */
+export async function changePassword(user_name, old_psw, new_psw) {
+  const base = import.meta.env.VITE_API_BASE || '/api/v1'
+  try {
+    const res = await axios.post(
+      `${base}/auth/change-password`,
+      {
+        user_name,
+        old_psw,
+        new_psw,
+        client_type: CLIENT_TYPE,
+      },
+      {
+        timeout: 15000,
+        headers: { 'X-Client-Type': CLIENT_TYPE },
+      },
+    )
+    const body = res.data || {}
+    if (typeof body.code === 'number' && body.code !== 0) {
+      throw new Error(body.message || '修改密码失败')
+    }
+    trackEvent(
+      'auth',
+      'change_password',
+      { user_name },
+      '/login',
+    )
+    return body.data || body
+  } catch (err) {
+    throw normalizeAuthError(err, '修改密码失败')
+  }
+}
+
+function normalizeAuthError(err, fallback) {
+  if (err?.response) {
+    const detail = err.response.data?.detail
+    if (typeof detail === 'string') throw new Error(detail)
+    if (Array.isArray(detail)) {
+      const msg = detail.map((d) => d.msg || JSON.stringify(d)).join('；')
+      throw new Error(msg || '请求参数错误')
+    }
+    if (typeof err.response.data?.message === 'string') {
+      throw new Error(err.response.data.message)
+    }
+  }
+  throw err instanceof Error ? err : new Error(String(err || fallback))
 }
 
 /** 已登录则返回本地会话；未登录抛错（不再自动 mock 登录） */

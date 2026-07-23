@@ -36,6 +36,19 @@ class PasswordLoginRequest(BaseModel):
     )
 
 
+class ChangePasswordRequest(BaseModel):
+    """Web 端登录页修改密码（需校验原密码，无需先登录）。"""
+
+    user_name: str = Field(..., min_length=1, max_length=64, description="登录用户名")
+    old_psw: str = Field(..., min_length=1, max_length=128, description="原密码")
+    new_psw: str = Field(..., min_length=1, max_length=128, description="新密码")
+    client_type: str = Field(
+        default="web",
+        description="客户端类型，仅支持 web",
+        pattern="^web$",
+    )
+
+
 class WxLoginResponse(BaseModel):
     """登录响应。"""
 

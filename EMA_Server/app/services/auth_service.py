@@ -186,3 +186,58 @@ def password_login(db: Session, user_name: str, psw: str, client_type: str = "we
         "has_consent": user_has_consent(db, user.id, user=user),
         "has_baseline": has_baseline,
     }
+
+
+def change_password(
+    db: Session,
+    user_name: str,
+    old_psw: str,
+    new_psw: str,
+    client_type: str = "web",
+) -> dict:
+    """Web 端修改密码：校验用户名与原密码后更新同名账号的全部参与记录。"""
+    from app.client_types import CLIENT_TYPE_WEB, validate_client_type
+
+    client_type = validate_client_type(client_type)
+    if client_type != CLIENT_TYPE_WEB:
+        raise ValueError("修改密码仅支持 client_type=web")
+
+    User = models_for(client_type).User
+    name = (user_name or "").strip()
+    old = old_psw or ""
+    new = (new_psw or "").strip()
+
+    if not name or not old or not new:
+        raise ValueError("用户名、原密码和新密码不能为空")
+    if new == old:
+        raise ValueError("新密码不能与原密码相同")
+    if len(new) < 6:
+        raise ValueError("新密码至少 6 位")
+
+    user = (
+        db.query(User)
+        .filter(User.user_name == name, User.study_status == "active")
+        .order_by(User.id.desc())
+        .first()
+    )
+    if not user:
+        user = (
+            db.query(User)
+            .filter(User.user_name == name)
+            .order_by(User.id.desc())
+            .first()
+        )
+
+    if not user or (user.psw or "") != old:
+        raise ValueError("用户名或原密码错误")
+
+    # 同名多轮参与记录一并更新，避免退出后再登录仍用旧密码
+    rows = db.query(User).filter(User.user_name == name).all()
+    for row in rows:
+        row.psw = new
+    db.commit()
+
+    return {
+        "user_name": name,
+        "updated_count": len(rows),
+    }
