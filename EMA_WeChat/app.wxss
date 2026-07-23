@@ -1,4 +1,4 @@
-@import './icon.wxss';
+@import "./icon.wxss";
 
 page {
   background: #f5f6f8;
@@ -15,25 +15,78 @@ page {
 .btn-primary {
   background: #07c160 !important;
   color: #fff !important;
+  border: none !important;
   border-radius: 12rpx;
   margin-top: 24rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 2.2;
+}
+.btn-primary::after {
+  border: none !important;
 }
 .btn-primary[disabled] {
   background: #c8c8c8 !important;
+  color: #fff !important;
 }
+/* 查看知情同意 / 退出登录 */
 .btn-secondary {
   background: #fff !important;
   color: #07c160 !important;
-  border: 1rpx solid #07c160 !important;
+  border: 2rpx solid #07c160 !important;
   border-radius: 12rpx;
   margin-top: 16rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 2.2;
 }
+.btn-secondary::after {
+  border: none !important;
+}
+.btn-secondary[disabled] {
+  color: #8fd9b0 !important;
+  border-color: #8fd9b0 !important;
+}
+/* 撤回授权 */
 .btn-revoke {
   background: #fff !important;
-  color: #e64340 !important;
-  border: 1rpx solid #e64340 !important;
+  color: #304ccc !important;
+  border: 2rpx solid #304ccc !important;
   border-radius: 12rpx;
   margin-top: 16rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 2.2;
+}
+.btn-revoke::after {
+  border: none !important;
+}
+/* 退出研究 */
+.btn-exit {
+  background: #fff !important;
+  color: #e64340 !important;
+  border: 2rpx solid #e64340 !important;
+  border-radius: 12rpx;
+  margin-top: 16rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 2.2;
+}
+.btn-exit::after {
+  border: none !important;
+}
+.btn-exit-study {
+  background: #fff !important;
+  color: #df79f2 !important;
+  border: 2rpx solid #df79f2 !important;
+  border-radius: 12rpx;
+  margin-top: 16rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  line-height: 2.2;
+}
+.btn-exit-study::after {
+  border: none !important;
 }
 .section-title {
   font-size: 32rpx;

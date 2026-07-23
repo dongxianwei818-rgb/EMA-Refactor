@@ -148,7 +148,7 @@ function mergeSkipRecords(list) {
 }
 
 Page({
-  data: { sessions: [], totalCount: 0 },
+  data: { sessions: [], totalCount: 0, expandedKey: '' },
 
   onShow: function () {
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
@@ -170,10 +170,29 @@ Page({
         tracker.trackEvent('records', 'view');
         var raw = mergeSkipRecords(ema.getSubmissions());
         var sessions = groupSubmissions(raw);
+        var prevKey = that.data.expandedKey;
+        var stillExists = sessions.some(function (s) {
+          return s.key === prevKey;
+        });
         that.setData({
           sessions: sessions,
           totalCount: raw.length,
+          // 默认展开第一条；刷新后若原展开项仍在则保持
+          expandedKey: stillExists
+            ? prevKey
+            : sessions.length
+              ? sessions[0].key
+              : '',
         });
       });
+  },
+
+  onToggleSession: function (e) {
+    var key = e.currentTarget.dataset.key;
+    if (!key) return;
+    // 手风琴：展开当前，收起其他；再次点击当前则收起
+    this.setData({
+      expandedKey: this.data.expandedKey === key ? '' : key,
+    });
   },
 });

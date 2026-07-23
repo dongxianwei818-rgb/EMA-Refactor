@@ -90,7 +90,16 @@
         <text>中等天数 <text class="forecast-stats-em">{{risk.forecast30.mediumRiskDays || 0}}</text></text>
         <text>前瞻预警 <text class="forecast-stats-em">{{risk.forecastAlertCount || 0}}</text></text>
       </view>
-      <view class="forecast-chart">
+      <view class="forecast-chart" wx:if="{{risk.forecast30.weeks && risk.forecast30.weeks.length}}">
+        <view class="forecast-day" wx:for="{{risk.forecast30.weeks}}" wx:key="weekIndex">
+          <text class="forecast-date forecast-date--week">{{item.label}}</text>
+          <view class="forecast-bar-wrap">
+            <view class="forecast-bar forecast-bar-{{item.level}}" style="width: {{item.barWidth}}%;" />
+          </view>
+          <text class="forecast-score">{{item.avgScore}}</text>
+        </view>
+      </view>
+      <view class="forecast-chart" wx:elif="{{risk.forecast30.days && risk.forecast30.days.length}}">
         <view class="forecast-day" wx:for="{{risk.forecast30.days}}" wx:key="dayIndex">
           <text class="forecast-date">{{item.dateLabel}}</text>
           <view class="forecast-bar-wrap">
@@ -123,19 +132,78 @@
       <view class="panel-tag panel-tag--alert">04</view>
       <view class="section-title">个体异常预警</view>
       <view wx:if="{{risk.alertCount === 0}}" class="risk-no-alert">暂无异常信号，状态整体平稳。</view>
-      <view class="alert-item alert-{{item.level}}" wx:for="{{risk.alerts}}" wx:key="id">
-        <view class="alert-item-head" wx:if="{{item.levelLabel}}">
+      <block wx:else>
+        <view class="alert-summary">
+          <text class="alert-summary-total">共 {{risk.alertCount}} 条</text>
+          <text wx:if="{{risk.alertDangerCount}}" class="alert-summary-chip alert-summary-danger">重点 {{risk.alertDangerCount}}</text>
+          <text wx:if="{{risk.alertWarnCount}}" class="alert-summary-chip alert-summary-warn">留意 {{risk.alertWarnCount}}</text>
+        </view>
+        <view class="alert-item alert-{{item.level}}" wx:for="{{risk.alerts}}" wx:key="id">
+          <view class="alert-item-head">
+            <text class="alert-level-tag">{{item.levelLabel}}</text>
+            <text wx:if="{{item.category}}" class="alert-category">{{item.category}}</text>
+          </view>
+          <view class="alert-title">{{item.title}}</view>
+          <view class="alert-desc">{{item.desc}}</view>
+          <view class="alert-meta" wx:if="{{item.source || item.metric}}">
+            <text wx:if="{{item.source}}" class="alert-metric">{{item.source}}</text>
+            <text wx:if="{{item.metric}}" class="alert-metric">{{item.metric}}</text>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <!-- 5. EMA五特性抽取风险预警 -->
+    <view class="trends-section card ema-feature-alert-card">
+      <view class="panel-tag panel-tag--ema-feat">05</view>
+      <view class="section-title">EMA五特性抽取风险预警</view>
+      <view class="risk-summary">基于 questions_features、text_features、voice_features、video_features、step_features 五项特征抽取结果生成。</view>
+      <view class="alert-summary">
+        <text class="alert-summary-total">共 {{emaFeatureAlerts.length}} 条</text>
+        <text wx:if="{{emaFeatureDangerCount}}" class="alert-summary-chip alert-summary-danger">重点 {{emaFeatureDangerCount}}</text>
+        <text wx:if="{{emaFeatureWarnCount}}" class="alert-summary-chip alert-summary-warn">留意 {{emaFeatureWarnCount}}</text>
+      </view>
+      <view wx:if="{{!emaFeatureAlerts.length}}" class="risk-no-alert">暂无五项特征抽取异常信号。</view>
+      <view class="alert-item alert-{{item.level}}" wx:for="{{emaFeatureAlerts}}" wx:key="id">
+        <view class="alert-item-head">
           <text class="alert-level-tag">{{item.levelLabel}}</text>
-          <text wx:if="{{item.metric}}" class="alert-category">{{item.metric}}</text>
+          <text wx:if="{{item.source}}" class="alert-category">{{item.source}}</text>
         </view>
         <view class="alert-title">{{item.title}}</view>
         <view class="alert-desc">{{item.desc}}</view>
+        <view class="alert-meta" wx:if="{{item.metric}}">
+          <text class="alert-metric">{{item.metric}}</text>
+        </view>
       </view>
     </view>
 
-		<!-- 5. 打卡概况 -->
+    <!-- 6. 用户行为分析风险预警 -->
+    <view class="trends-section card behavior-alert-card">
+      <view class="panel-tag panel-tag--behavior-alert">06</view>
+      <view class="section-title">用户行为分析风险预警</view>
+      <view class="risk-summary">基于 behavior_features 与打卡依从性、缺测、跳过、打开模式与节律等行为信号生成。</view>
+      <view class="alert-summary">
+        <text class="alert-summary-total">共 {{behaviorAnalysisAlerts.length}} 条</text>
+        <text wx:if="{{behaviorDangerCount}}" class="alert-summary-chip alert-summary-danger">重点 {{behaviorDangerCount}}</text>
+        <text wx:if="{{behaviorWarnCount}}" class="alert-summary-chip alert-summary-warn">留意 {{behaviorWarnCount}}</text>
+      </view>
+      <view wx:if="{{!behaviorAnalysisAlerts.length}}" class="risk-no-alert">暂无用户行为分析异常信号。</view>
+      <view class="alert-item alert-{{item.level}}" wx:for="{{behaviorAnalysisAlerts}}" wx:key="id">
+        <view class="alert-item-head">
+          <text class="alert-level-tag">{{item.levelLabel}}</text>
+          <text wx:if="{{item.source}}" class="alert-category">{{item.source}}</text>
+        </view>
+        <view class="alert-title">{{item.title}}</view>
+        <view class="alert-desc">{{item.desc}}</view>
+        <view class="alert-meta" wx:if="{{item.metric}}">
+          <text class="alert-metric">{{item.metric}}</text>
+        </view>
+      </view>
+    </view>
+
+		<!-- 7. 打卡概况 -->
 		<view class="trends-section card record-card">
-      <view class="panel-tag panel-tag--record">05</view>
+      <view class="panel-tag panel-tag--record">07</view>
       <view class="section-title">打卡概况</view>
       <view wx:if="{{!hasData}}" class="risk-no-alert">暂无打卡概况数据。</view>
 			<view wx:else>

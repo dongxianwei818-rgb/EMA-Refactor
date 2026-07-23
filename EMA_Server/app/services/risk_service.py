@@ -1580,6 +1580,39 @@ def _dedupe_alerts(alerts: list[dict]) -> list[dict]:
     return out
 
 
+def _score_from_feature_alerts(feature_alerts: list[dict]) -> tuple[int, list]:
+    """将特征表预警折算为风险指数增量，并生成当前评估因素摘要。"""
+    score = 0
+    factors: list[dict] = []
+    sources_seen: set[str] = set()
+    source_label = {
+        "questions_features": "问卷特征",
+        "text_features": "日记文本特征",
+        "voice_features": "语音特征",
+        "video_features": "视频特征",
+        "step_features": "步数特征",
+        "behavior_features": "行为特征",
+    }
+    for item in feature_alerts or []:
+        level = item.get("level") or "warn"
+        if level == "danger":
+            score += 2
+        elif level == "warn":
+            score += 1
+        src = str(item.get("source") or "")
+        if src and src not in sources_seen and len(factors) < 6:
+            sources_seen.add(src)
+            factors.append(
+                {
+                    "label": source_label.get(src, item.get("title") or src),
+                    "value": item.get("levelLabel")
+                    or ("重点关注" if level == "danger" else "需留意"),
+                    "source": src,
+                }
+            )
+    return min(6, score), factors
+
+
 def collect_anomaly_alerts(
     db: Session,
     user,
@@ -1588,6 +1621,7 @@ def collect_anomaly_alerts(
     missed_days: int | None = None,
     ema_trend: dict | None = None,
     profile: dict | None = None,
+    feature_alerts: list[dict] | None = None,
 ) -> list[dict]:
     """汇总个体异常预警（基线/问卷/行为/特征表/走势/打卡统计）。"""
     if answers is None:
@@ -1627,7 +1661,8 @@ def collect_anomaly_alerts(
         item.setdefault("category", "用户行为分析风险预警")
         item.setdefault("source", "behavior / skip_events")
     baseline_alerts = _mine_baseline_alerts(profile or {})
-    feature_alerts = _mine_feature_alerts(db, user.id, user=user)
+    if feature_alerts is None:
+        feature_alerts = _mine_feature_alerts(db, user.id, user=user)
     trend_alerts = _mine_trend_alerts(db, user.id, ema_trend, user=user)
     stats_alerts = _mine_checkin_stats_alerts(db, user.id, user=user)
     return _dedupe_alerts(
@@ -2177,10 +2212,12 @@ def compute_risk_assessment(
     e_score, ema_factors, _ = _score_recent_ema(answers)
     missed_days = _count_missed_days(db, user.id, user=user)
     behavior_score, _ = _behavior_alerts(db, user.id, missed_days, user=user)
+    feature_alerts = _mine_feature_alerts(db, user.id, user=user)
+    f_score, feature_factors = _score_from_feature_alerts(feature_alerts)
 
     critical_reasons = _critical_reasons(profile, answers)
     critical = bool(critical_reasons)
-    total = b_score + e_score + behavior_score
+    total = b_score + e_score + behavior_score + f_score
     score_level = _score_based_level(total)
     level = _resolve_level(total, critical)
     meta = LEVEL_META[level]
@@ -2210,6 +2247,7 @@ def compute_risk_assessment(
         missed_days=missed_days,
         ema_trend=ema_trend,
         profile=profile,
+        feature_alerts=feature_alerts,
     )
 
     updated_label = "暂无数据"
@@ -2240,7 +2278,7 @@ def compute_risk_assessment(
             "criticalReasons": critical_reasons,
             "summary": summary,
             "updatedLabel": updated_label,
-            "factors": factors + ema_factors,
+            "factors": factors + ema_factors + feature_factors,
         },
         "forecast": forecast,
         "forecast30": forecast30,

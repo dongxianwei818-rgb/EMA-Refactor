@@ -1,49 +1,72 @@
 <view class="page-pad">
-  <view class="card profile-card kv-card">
-    <view class="profile-card-head">
-      <view class="section-title">基本信息</view>
-      <text class="profile-more" bindtap="goProfileDetail" wx:if="{{hasBaseline}}">查看详情 ›</text>
-      <text class="profile-more" bindtap="goProfileDetail" wx:else>去填写 ›</text>
+  <view class="card profile-card kv-card {{expandedSection === 'basic' ? 'is-expanded' : ''}}">
+    <view class="profile-card-head" data-section="basic" bindtap="onToggleSection">
+      <view class="profile-card-head-left">
+        <view class="section-title">基本信息</view>
+        <view class="section-chevron {{expandedSection === 'basic' ? 'is-open' : ''}}"></view>
+      </view>
+      <text
+        class="profile-more"
+        catchtap="goProfileDetail"
+        wx:if="{{hasBaseline}}"
+      >查看详情 ›</text>
+      <text class="profile-more" catchtap="goProfileDetail" wx:else>去填写 ›</text>
     </view>
-    <block wx:if="{{hasBaseline}}">
-      <view class="profile-id">用户名：{{userName}}</view>
+    <view class="profile-card-body" wx:if="{{expandedSection === 'basic'}}">
+      <block wx:if="{{hasBaseline}}">
+        <view class="profile-id">用户名：{{userName}}</view>
+        <view class="kv-list">
+          <view
+            class="profile-row {{index === basicInfo.length - 1 ? 'is-last' : ''}}"
+            wx:for="{{basicInfo}}"
+            wx:key="id"
+          >
+            <text class="profile-label label-{{item.id}}">{{item.label}}</text>
+            <text class="profile-value">{{item.value}}</text>
+          </view>
+        </view>
+        <view class="profile-empty" wx:if="{{!basicInfo.length}}">暂无已填写的基本信息</view>
+      </block>
+      <view class="profile-empty" wx:else>尚未完成基线测评，点击前往填写。</view>
+    </view>
+  </view>
+
+  <view class="card profile-card kv-card {{expandedSection === 'behavior' ? 'is-expanded' : ''}}">
+    <view class="profile-card-head" data-section="behavior" bindtap="onToggleSection">
+      <view class="profile-card-head-left">
+        <view class="section-title">使用行为</view>
+        <view class="section-chevron {{expandedSection === 'behavior' ? 'is-open' : ''}}"></view>
+      </view>
+      <text class="profile-more" catchtap="goBehaviorDetail">查看详情 ›</text>
+    </view>
+    <view class="profile-card-body" wx:if="{{expandedSection === 'behavior'}}">
       <view class="kv-list">
         <view
-          class="profile-row {{index === basicInfo.length - 1 ? 'is-last' : ''}}"
-          wx:for="{{basicInfo}}"
+          class="profile-row {{index === behaviorInfo.length - 1 ? 'is-last' : ''}}"
+          wx:for="{{behaviorInfo}}"
           wx:key="id"
         >
           <text class="profile-label label-{{item.id}}">{{item.label}}</text>
-          <text class="profile-value">{{item.value}}</text>
+          <text class="profile-value">{{item.value}} {{item.unit}}</text>
         </view>
       </view>
-      <view class="profile-empty" wx:if="{{!basicInfo.length}}">暂无已填写的基本信息</view>
-    </block>
-    <view class="profile-empty" wx:else>尚未完成基线测评，点击前往填写。</view>
+      <view class="kv-footnote">连续缺测天数可作研究信号参考</view>
+    </view>
   </view>
 
-  <view class="card profile-card kv-card">
-    <view class="profile-card-head">
-      <view class="section-title">使用行为</view>
-      <text class="profile-more" bindtap="goBehaviorDetail">查看详情 ›</text>
-    </view>
-    <view class="kv-list">
-      <view
-        class="profile-row {{index === behaviorInfo.length - 1 ? 'is-last' : ''}}"
-        wx:for="{{behaviorInfo}}"
-        wx:key="id"
-      >
-        <text class="profile-label label-{{item.id}}">{{item.label}}</text>
-        <text class="profile-value">{{item.value}} {{item.unit}}</text>
-      </view>
-    </view>
-    <view class="kv-footnote">连续缺测天数可作研究信号参考</view>
+  <view class="my-actions">
+    <button class="btn-secondary my-action-btn" bindtap="goConsent">查看知情同意</button>
+    <button
+      class="btn-revoke my-action-btn"
+      wx:if="{{hasConsent}}"
+      bindtap="onRevokeConsent"
+    >撤回授权</button>
+    <button class="btn-exit-study my-action-btn" bindtap="exitStudy">退出研究</button>
+    <button
+      class="btn-exit my-action-btn"
+      bindtap="logout"
+      loading="{{loggingOut}}"
+      disabled="{{loggingOut}}"
+    >{{loggingOut ? '退出中…' : '退出登录'}}</button>
   </view>
-
-  <button class="btn-secondary" bindtap="goConsent">查看知情同意</button>
-  <button class="btn-revoke" wx:if="{{hasConsent}}" bindtap="onRevokeConsent">撤回授权</button>
-  <button class="btn-secondary" bindtap="exitStudy">退出研究</button>
-  <button class="btn-secondary" bindtap="logout" loading="{{loggingOut}}" disabled="{{loggingOut}}">
-    {{loggingOut ? '退出中…' : '退出登录'}}
-  </button>
 </view>

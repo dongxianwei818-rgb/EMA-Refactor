@@ -15,6 +15,7 @@ Page({
     hasConsent: false,
     stats: {},
     loggingOut: false,
+    expandedSection: "basic",
   },
   onShow: function () {
     if (typeof this.getTabBar === "function" && this.getTabBar()) {
@@ -99,6 +100,14 @@ Page({
       hasBaseline: ema.isResearchBound(),
       hasConsent: ema.hasConsent(),
       stats: stats,
+    });
+  },
+  onToggleSection: function (e) {
+    var section = e.currentTarget.dataset.section;
+    if (!section) return;
+    // 手风琴：展开当前并收起其他；再点当前则收起
+    this.setData({
+      expandedSection: this.data.expandedSection === section ? "" : section,
     });
   },
   goBehaviorDetail: function () {

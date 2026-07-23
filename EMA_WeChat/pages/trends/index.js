@@ -14,6 +14,12 @@ Page({
     stepsAnalytics: {},
     stats: {},
     dayCount: DAY_COUNT,
+    emaFeatureAlerts: [],
+    emaFeatureDangerCount: 0,
+    emaFeatureWarnCount: 0,
+    behaviorAnalysisAlerts: [],
+    behaviorDangerCount: 0,
+    behaviorWarnCount: 0,
   },
 
   onShow: function () {
@@ -47,6 +53,31 @@ Page({
         if (risk.forecastAlertCount == null) {
           risk.forecastAlertCount = risk.forecastAlerts.length;
         }
+        if (!risk.alerts) risk.alerts = [];
+
+        var EMA_CAT = 'EMA五特性抽取风险预警';
+        var BEH_CAT = '用户行为分析风险预警';
+        var allAlerts = risk.alerts || [];
+        var emaFeatureAlerts = allAlerts.filter(function (a) {
+          return (a.category || '') === EMA_CAT;
+        });
+        var behaviorAnalysisAlerts = allAlerts.filter(function (a) {
+          return (a.category || '') === BEH_CAT;
+        });
+        // 个体异常预警面板排除已在 05/06 单独展示的特征类，避免重复
+        var otherAlerts = allAlerts.filter(function (a) {
+          var cat = a.category || '';
+          return cat !== EMA_CAT && cat !== BEH_CAT;
+        });
+        risk.alerts = otherAlerts;
+        risk.alertCount = otherAlerts.length;
+        risk.alertDangerCount = otherAlerts.filter(function (a) {
+          return a.level === 'danger';
+        }).length;
+        risk.alertWarnCount = otherAlerts.filter(function (a) {
+          return a.level === 'warn';
+        }).length;
+
         that.setData({
           loading: false,
           hasData: !!(data && data.hasData),
@@ -56,6 +87,20 @@ Page({
           stepsAnalytics: (data && data.stepsAnalytics) || {},
           stats: (data && data.stats) || {},
           dayCount: (data && data.dayCount) || DAY_COUNT,
+          emaFeatureAlerts: emaFeatureAlerts,
+          emaFeatureDangerCount: emaFeatureAlerts.filter(function (a) {
+            return a.level === 'danger';
+          }).length,
+          emaFeatureWarnCount: emaFeatureAlerts.filter(function (a) {
+            return a.level === 'warn';
+          }).length,
+          behaviorAnalysisAlerts: behaviorAnalysisAlerts,
+          behaviorDangerCount: behaviorAnalysisAlerts.filter(function (a) {
+            return a.level === 'danger';
+          }).length,
+          behaviorWarnCount: behaviorAnalysisAlerts.filter(function (a) {
+            return a.level === 'warn';
+          }).length,
         });
       })
       .catch(function (err) {
@@ -68,6 +113,12 @@ Page({
           stepsTrend: [],
           stepsAnalytics: {},
           stats: {},
+          emaFeatureAlerts: [],
+          emaFeatureDangerCount: 0,
+          emaFeatureWarnCount: 0,
+          behaviorAnalysisAlerts: [],
+          behaviorDangerCount: 0,
+          behaviorWarnCount: 0,
         });
         wx.showToast({ title: err.message || '加载失败', icon: 'none' });
       });

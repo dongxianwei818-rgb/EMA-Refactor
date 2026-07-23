@@ -54,7 +54,11 @@
   align-items: flex-start;
   padding: 28rpx 32rpx;
   background: #f7faf8;
-  border-bottom: 1rpx solid #e8ece9;
+  border-bottom: 1rpx solid transparent;
+}
+
+.session-group.is-expanded .session-header {
+  border-bottom-color: #e8ece9;
 }
 
 .session-header-left {
@@ -84,6 +88,9 @@
   text-align: right;
   flex-shrink: 0;
   margin-left: 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .session-count {
@@ -96,6 +103,21 @@
   font-size: 24rpx;
   color: #888;
   margin-top: 8rpx;
+}
+
+.session-chevron {
+  width: 16rpx;
+  height: 16rpx;
+  margin-top: 12rpx;
+  border-right: 3rpx solid #bbb;
+  border-bottom: 3rpx solid #bbb;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.session-chevron.is-open {
+  margin-top: 20rpx;
+  transform: rotate(225deg);
 }
 
 .session-body {

@@ -8,7 +8,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.profile-card.is-expanded .profile-card-head {
   margin-bottom: 8rpx;
+}
+
+.profile-card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
 }
 
 .profile-card-head .section-title {
@@ -16,6 +27,25 @@
   font-size: 30rpx;
   font-weight: 600;
   color: #333;
+}
+
+.section-chevron {
+  width: 14rpx;
+  height: 14rpx;
+  border-right: 3rpx solid #bbb;
+  border-bottom: 3rpx solid #bbb;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.section-chevron.is-open {
+  transform: rotate(225deg);
+  margin-top: 6rpx;
+}
+
+.profile-card-body {
+  padding-top: 4rpx;
 }
 
 .profile-more {
@@ -47,4 +77,21 @@
   color: #999;
   line-height: 1.6;
   margin-top: 8rpx;
+}
+
+.my-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-top: 8rpx;
+}
+
+.my-action-btn {
+  width: 48% !important;
+  box-sizing: border-box;
+  margin: 0 0 16rpx !important;
+  padding-left: 8rpx !important;
+  padding-right: 8rpx !important;
+  font-size: 26rpx !important;
+  line-height: 2.1 !important;
 }

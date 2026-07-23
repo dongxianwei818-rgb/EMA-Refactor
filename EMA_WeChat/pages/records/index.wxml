@@ -7,8 +7,12 @@
 
   <view wx:if="{{sessions.length === 0}}" class="records-empty">暂无采集记录</view>
 
-  <view class="session-group" wx:for="{{sessions}}" wx:key="key">
-    <view class="session-header">
+  <view
+    class="session-group {{expandedKey === item.key ? 'is-expanded' : ''}}"
+    wx:for="{{sessions}}"
+    wx:key="key"
+  >
+    <view class="session-header" data-key="{{item.key}}" bindtap="onToggleSession">
       <view class="session-header-left">
         <view class="session-badge">第 {{item.sessionId}} 次打卡</view>
         <view class="session-date">{{item.dateLabel}}</view>
@@ -16,10 +20,11 @@
       <view class="session-header-right">
         <view class="session-count">{{item.itemCount}} 项</view>
         <view class="session-time">{{item.timeRange}}</view>
+        <view class="session-chevron {{expandedKey === item.key ? 'is-open' : ''}}"></view>
       </view>
     </view>
 
-    <view class="session-body">
+    <view class="session-body" wx:if="{{expandedKey === item.key}}">
       <view class="record-item" wx:for="{{item.items}}" wx:for-item="record" wx:key="id">
         <view class="record-item-type type-{{record.type}}">{{record.typeLabel}}</view>
         <view class="record-item-main">

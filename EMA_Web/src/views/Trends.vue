@@ -207,31 +207,31 @@
         <section class="trends-section card alert-card">
           <span class="panel-tag panel-tag--alert">03</span>
           <h3 class="section-title">个体异常预警</h3>
-          <p v-if="!risk.alertCount" class="risk-no-alert">
+          <p v-if="!otherAlertCount" class="risk-no-alert">
             暂无异常信号，状态整体平稳。
           </p>
           <template v-else>
             <div class="alert-summary">
               <span class="alert-summary-total"
-                >共 {{ risk.alertCount }} 条</span
+                >共 {{ otherAlertCount }} 条</span
               >
               <span
-                v-if="risk.alertDangerCount"
+                v-if="otherAlertDangerCount"
                 class="alert-summary-chip alert-summary-danger"
               >
-                重点 {{ risk.alertDangerCount }}
+                重点 {{ otherAlertDangerCount }}
               </span>
               <span
-                v-if="risk.alertWarnCount"
+                v-if="otherAlertWarnCount"
                 class="alert-summary-chip alert-summary-warn"
               >
-                留意 {{ risk.alertWarnCount }}
+                留意 {{ otherAlertWarnCount }}
               </span>
               <span
-                v-if="risk.alertInfoCount"
+                v-if="otherAlertInfoCount"
                 class="alert-summary-chip alert-summary-info"
               >
-                提示 {{ risk.alertInfoCount }}
+                提示 {{ otherAlertInfoCount }}
               </span>
             </div>
             <div v-if="alertCategoryTabs.length > 1" class="alert-cat-tabs">
@@ -388,7 +388,8 @@
           <span class="panel-tag panel-tag--ema-feat">04</span>
           <h3 class="section-title">EMA五特性抽取风险预警</h3>
           <p class="risk-summary" style="margin-left: 0">
-            基于问卷、日记、语音、视频、步数五项特征抽取结果生成的预警。
+            基于 questions_features、text_features、voice_features、video_features、step_features
+            五项特征抽取结果生成的预警。
           </p>
           <div class="alert-summary">
             <span class="alert-summary-total"
@@ -437,7 +438,7 @@
           <span class="panel-tag panel-tag--behavior-alert">05</span>
           <h3 class="section-title">用户行为分析风险预警</h3>
           <p class="risk-summary" style="margin-left: 0">
-            基于打卡依从性、缺测、跳过、打开模式与节律等行为特征生成的预警。
+            基于 behavior_features 与打卡依从性、缺测、跳过、打开模式与节律等行为信号生成的预警。
           </p>
           <div class="alert-summary">
             <span class="alert-summary-total"
@@ -921,6 +922,22 @@ const behaviorAnalysisAlerts = computed(() =>
     (item) => (item.category || "") === BEHAVIOR_ANALYSIS_CAT,
   ),
 );
+const otherAlerts = computed(() =>
+  (risk.value?.alerts || []).filter((item) => {
+    const cat = item.category || "";
+    return cat !== EMA_FEATURE_CAT && cat !== BEHAVIOR_ANALYSIS_CAT;
+  }),
+);
+const otherAlertCount = computed(() => otherAlerts.value.length);
+const otherAlertDangerCount = computed(
+  () => otherAlerts.value.filter((a) => a.level === "danger").length,
+);
+const otherAlertWarnCount = computed(
+  () => otherAlerts.value.filter((a) => a.level === "warn").length,
+);
+const otherAlertInfoCount = computed(
+  () => otherAlerts.value.filter((a) => a.level === "info").length,
+);
 const emaFeatureDangerCount = computed(
   () => emaFeatureAlerts.value.filter((a) => a.level === "danger").length,
 );
@@ -935,7 +952,7 @@ const behaviorWarnCount = computed(
 );
 
 const filteredAlerts = computed(() => {
-  const list = (risk.value?.alerts || []).filter((item) => {
+  const list = otherAlerts.value.filter((item) => {
     const cat = item.category || "综合";
     return cat;
   });
@@ -947,9 +964,8 @@ const filteredAlerts = computed(() => {
 
 const alertCategoryCounts = computed(() => {
   const counts = {};
-  for (const item of risk.value?.alerts || []) {
+  for (const item of otherAlerts.value) {
     const cat = item.category || "综合";
-    // if (cat === EMA_FEATURE_CAT || cat === BEHAVIOR_ANALYSIS_CAT) continue;
     counts[cat] = (counts[cat] || 0) + 1;
   }
   return counts;
