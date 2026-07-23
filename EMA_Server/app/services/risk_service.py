@@ -1825,18 +1825,25 @@ def _build_forecast(
 
 
 def _build_forecast_alerts(
-    forecast30: dict,
+    forecast: dict,
     *,
     critical: bool = False,
     missed_days: int = 0,
     ema_trend: dict | None = None,
 ) -> list[dict]:
-    """基于 30 天预测生成前瞻性预警条目。"""
+    """基于预测结果生成前瞻性预警条目（支持 7 / 30 天）。"""
     ema_trend = ema_trend or {}
     alerts: list[dict] = []
-    days = list(forecast30.get("days") or [])
+    days = list(forecast.get("days") or [])
     if not days:
         return alerts
+
+    horizon = int(forecast.get("horizonDays") or len(days) or 7)
+    is_short = horizon <= 7
+    period = "未来一周" if is_short else "未来 30 天"
+    category = "未来7天预警" if is_short else "未来30天预警"
+    source = "risk_forecast_7d" if is_short else "risk_forecast_30d"
+    id_prefix = "forecast7" if is_short else "forecast30"
 
     # 连续高风险窗口
     high_windows: list[tuple[int, int]] = []
@@ -1857,65 +1864,71 @@ def _build_forecast_alerts(
         date_b = next((x["dateLabel"] for x in days if x["dayIndex"] == b), str(b))
         alerts.append(
             _alert(
-                f"forecast30_high_window_{idx + 1}",
+                f"{id_prefix}_high_window_{idx + 1}",
                 "danger",
                 "预计进入重点关注时段",
                 f"预计 {date_a} 至 {date_b}（约 {span} 天）风险指数处于需重点关注水平。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
+                category=category,
+                source=source,
                 metric=f"D+{a}~D+{b}",
             )
         )
 
-    medium_days = int(forecast30.get("mediumRiskDays") or 0)
-    high_days = int(forecast30.get("highRiskDays") or 0)
-    if high_days >= 7:
+    medium_days = int(forecast.get("mediumRiskDays") or 0)
+    high_days = int(forecast.get("highRiskDays") or 0)
+    high_threshold = 3 if is_short else 7
+    medium_threshold = 4 if is_short else 10
+    if high_days >= high_threshold:
         alerts.append(
             _alert(
-                "forecast30_high_days_many",
+                f"{id_prefix}_high_days_many",
                 "danger",
-                "未来 30 天重点关注天数偏多",
-                f"预测未来 30 天约有 {high_days} 天处于需重点关注，建议尽早干预与支持。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
+                f"{period}重点关注天数偏多",
+                f"预测{period}约有 {high_days} 天处于需重点关注，建议尽早干预与支持。",
+                category=category,
+                source=source,
                 metric=f"{high_days} 天",
             )
         )
-    elif medium_days >= 10 and high_days == 0:
+    elif medium_days >= medium_threshold and high_days == 0:
         alerts.append(
             _alert(
-                "forecast30_medium_days_many",
+                f"{id_prefix}_medium_days_many",
                 "warn",
-                "未来 30 天中等关注天数偏多",
-                f"预测未来 30 天约有 {medium_days} 天处于中等关注，请持续跟踪情绪与打卡。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
+                f"{period}中等关注天数偏多",
+                f"预测{period}约有 {medium_days} 天处于中等关注，请持续跟踪情绪与打卡。",
+                category=category,
+                source=source,
                 metric=f"{medium_days} 天",
             )
         )
 
-    if forecast30.get("trendLabel") == "上升":
+    if forecast.get("trendLabel") == "上升":
         alerts.append(
             _alert(
-                "forecast30_trend_up",
+                f"{id_prefix}_trend_up",
                 "warn",
-                "未来 30 天风险走势偏上升",
-                "结合近期问卷与行为信号，未来一个月风险指数可能逐步抬升。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
-                metric=str(forecast30.get("trendLabel") or "上升"),
+                f"{period}风险走势偏上升",
+                (
+                    "结合近期问卷与行为信号，未来一周风险指数可能逐步抬升。"
+                    if is_short
+                    else "结合近期问卷与行为信号，未来一个月风险指数可能逐步抬升。"
+                ),
+                category=category,
+                source=source,
+                metric=str(forecast.get("trendLabel") or "上升"),
             )
         )
 
     if critical:
         alerts.append(
             _alert(
-                "forecast30_critical_persist",
+                f"{id_prefix}_critical_persist",
                 "danger",
-                "关键信号提示近月需持续关注",
-                "当前存在关键强制信号，预计未来 30 天仍需优先跟进与支持。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
+                f"关键信号提示{'近周' if is_short else '近月'}需持续关注",
+                f"当前存在关键强制信号，预计{period}仍需优先跟进与支持。",
+                category=category,
+                source=source,
                 metric="critical",
             )
         )
@@ -1923,12 +1936,12 @@ def _build_forecast_alerts(
     if missed_days >= 3:
         alerts.append(
             _alert(
-                "forecast30_missed_carry",
+                f"{id_prefix}_missed_carry",
                 "warn",
                 "缺测模式可能延续影响",
-                f"当前已连续缺测 {missed_days} 天，若未恢复规律打卡，未来 30 天预测风险可能被放大。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
+                f"当前已连续缺测 {missed_days} 天，若未恢复规律打卡，{period}预测风险可能被放大。",
+                category=category,
+                source=source,
                 metric=f"{missed_days} 天",
             )
         )
@@ -1936,11 +1949,11 @@ def _build_forecast_alerts(
     if ema_trend.get("moodSlope", 0) <= -1.0:
         alerts.append(
             _alert(
-                "forecast30_mood_carry",
+                f"{id_prefix}_mood_carry",
                 "warn",
                 "心情走低或将延续",
-                "近一周心情持续走低，若趋势延续，未来 30 天情绪风险可能抬升。",
-                category="未来30天预警",
+                f"近一周心情持续走低，若趋势延续，{period}情绪风险可能抬升。",
+                category=category,
                 source="ema_questions",
                 metric=f"斜率 {ema_trend.get('moodSlope'):.2f}",
             )
@@ -1948,32 +1961,63 @@ def _build_forecast_alerts(
     if ema_trend.get("stressSlope", 0) >= 1.0:
         alerts.append(
             _alert(
-                "forecast30_stress_carry",
+                f"{id_prefix}_stress_carry",
                 "warn",
                 "压力升高或将延续",
-                "近一周压力持续升高，未来 30 天需关注减压与作息调节。",
-                category="未来30天预警",
+                f"近一周压力持续升高，{period}需关注减压与作息调节。",
+                category=category,
                 source="ema_questions",
                 metric=f"斜率 {ema_trend.get('stressSlope'):.2f}",
             )
         )
 
-    # 峰值周提示
-    weeks = list(forecast30.get("weeks") or [])
-    peak_weeks = [w for w in weeks if w.get("level") == "high"]
-    if peak_weeks:
-        w = peak_weeks[0]
-        alerts.append(
-            _alert(
-                "forecast30_peak_week",
-                "danger" if int(w.get("highDays") or 0) >= 3 else "warn",
-                f"预计{w.get('label')}风险较高",
-                f"{w.get('dateRange')} 平均指数约 {w.get('avgScore')}，其中重点关注约 {w.get('highDays')} 天。",
-                category="未来30天预警",
-                source="risk_forecast_30d",
-                metric=str(w.get("dateRange") or ""),
+    # 7 天：峰值日；30 天：峰值周
+    if is_short:
+        peak_days = [d for d in days if d.get("level") == "high"]
+        if peak_days:
+            d0 = peak_days[0]
+            alerts.append(
+                _alert(
+                    f"{id_prefix}_peak_day",
+                    "danger",
+                    f"预计 {d0.get('dateLabel')} 风险较高",
+                    f"该日预测指数约 {d0.get('score')}，处于需重点关注水平。",
+                    category=category,
+                    source=source,
+                    metric=str(d0.get("dateLabel") or ""),
+                )
             )
-        )
+        else:
+            medium_peak = [d for d in days if d.get("level") == "medium"]
+            if medium_peak:
+                d0 = max(medium_peak, key=lambda x: int(x.get("score") or 0))
+                alerts.append(
+                    _alert(
+                        f"{id_prefix}_peak_day_medium",
+                        "warn",
+                        f"预计 {d0.get('dateLabel')} 需留意",
+                        f"该日预测指数约 {d0.get('score')}，为未来一周相对高点。",
+                        category=category,
+                        source=source,
+                        metric=str(d0.get("dateLabel") or ""),
+                    )
+                )
+    else:
+        weeks = list(forecast.get("weeks") or [])
+        peak_weeks = [w for w in weeks if w.get("level") == "high"]
+        if peak_weeks:
+            w = peak_weeks[0]
+            alerts.append(
+                _alert(
+                    f"{id_prefix}_peak_week",
+                    "danger" if int(w.get("highDays") or 0) >= 3 else "warn",
+                    f"预计{w.get('label')}风险较高",
+                    f"{w.get('dateRange')} 平均指数约 {w.get('avgScore')}，其中重点关注约 {w.get('highDays')} 天。",
+                    category=category,
+                    source=source,
+                    metric=str(w.get("dateRange") or ""),
+                )
+            )
 
     return _dedupe_alerts(alerts)
 
@@ -2085,6 +2129,8 @@ def _empty_assessment() -> dict[str, Any]:
             "peakLevelClass": "",
             "highRiskDays": 0,
             "mediumRiskDays": 0,
+            "alerts": [],
+            "alertCount": 0,
         },
         "forecast30": {
             "hasForecast": False,
@@ -2143,6 +2189,14 @@ def compute_risk_assessment(
     ema_trend = _recent_ema_trend(db, user.id, user=user)
     forecast = _build_forecast(total, critical, missed_days, ema_trend, horizon=7)
     forecast30 = _build_forecast(total, critical, missed_days, ema_trend, horizon=30)
+    forecast_alerts_7 = _build_forecast_alerts(
+        forecast,
+        critical=critical,
+        missed_days=missed_days,
+        ema_trend=ema_trend,
+    )
+    forecast["alerts"] = forecast_alerts_7
+    forecast["alertCount"] = len(forecast_alerts_7)
     forecast_alerts = _build_forecast_alerts(
         forecast30,
         critical=critical,

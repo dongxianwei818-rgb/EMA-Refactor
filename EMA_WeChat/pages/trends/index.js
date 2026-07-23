@@ -30,10 +30,27 @@ Page({
     trendsApi
       .fetchTrendsOverview(DAY_COUNT)
       .then(function (data) {
+        var risk = (data && data.risk) || {};
+        if (!risk.forecast30) {
+          risk.forecast30 = {
+            trendLabel: '',
+            peakLevelLabel: '',
+            peakLevelClass: '',
+            summary: '',
+            highRiskDays: 0,
+            mediumRiskDays: 0,
+            weeks: [],
+            days: [],
+          };
+        }
+        if (!risk.forecastAlerts) risk.forecastAlerts = [];
+        if (risk.forecastAlertCount == null) {
+          risk.forecastAlertCount = risk.forecastAlerts.length;
+        }
         that.setData({
           loading: false,
           hasData: !!(data && data.hasData),
-          risk: (data && data.risk) || {},
+          risk: risk,
           metrics: (data && data.metrics) || [],
           stepsTrend: (data && data.stepsTrend) || [],
           stepsAnalytics: (data && data.stepsAnalytics) || {},

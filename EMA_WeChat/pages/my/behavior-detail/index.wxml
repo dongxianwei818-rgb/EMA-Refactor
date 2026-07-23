@@ -1,17 +1,20 @@
 <view class="page-pad">
-  <view class="card" wx:if="{{hasData}}">
+  <view class="card kv-card" wx:if="{{hasData}}">
     <block wx:for="{{sections}}" wx:key="id">
       <view class="section-title">{{item.title}}</view>
-      <view class="profile-row" wx:for="{{item.rows}}" wx:for-item="row" wx:key="label">
-        <text class="profile-label">{{row.label}}</text>
-        <text class="profile-value">{{row.value}}</text>
+      <view class="kv-list">
+        <view
+          class="profile-row {{rowIndex === item.rows.length - 1 ? 'is-last' : ''}}"
+          wx:for="{{item.rows}}"
+          wx:for-item="row"
+          wx:for-index="rowIndex"
+          wx:key="label"
+        >
+          <text class="profile-label label-{{row.id}}">{{row.label}}</text>
+          <text class="profile-value">{{row.value}}</text>
+        </view>
       </view>
     </block>
-    <!-- <view class="section-title" wx:if="{{logs.length}}">行为日志</view>
-    <view class="log-item" wx:for="{{logs}}" wx:key="id">
-      <view class="log-time">{{item.time}}</view>
-      <view class="log-summary">{{item.summary}}</view>
-    </view> -->
   </view>
   <view class="card" wx:else>
     <view class="profile-empty">暂无使用行为记录。</view>

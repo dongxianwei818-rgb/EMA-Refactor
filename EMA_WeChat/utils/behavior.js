@@ -37,6 +37,19 @@ var ACTION_LABELS = {
   hide_face_toggle: "切换不露脸",
 };
 
+var SUMMARY_ID_BY_LABEL = {
+  行为记录总数: "tone0",
+  打开次数: "openCount",
+  今日已完成打卡轮次: "tone1",
+  连续缺测天数: "missedDays",
+  补打卡次数: "tone2",
+  平均日记字数: "avgDiary",
+  "平均语音时长(秒)": "avgVoice",
+  "平均视频时长(秒)": "avgVideo",
+  语音跳过次数: "voiceSkips",
+  视频跳过次数: "videoSkips",
+};
+
 function formatDateTime(ts) {
   if (!ts) return "";
   var d = new Date(ts);
@@ -90,9 +103,13 @@ function formatLogSummary(log) {
   return parts.join(" · ");
 }
 
-function pushRows(rows, label, value) {
+function pushRows(rows, label, value, idHint) {
   if (value === undefined || value === null || value === "") return;
-  rows.push({ label: label, value: String(value) });
+  var id =
+    idHint ||
+    SUMMARY_ID_BY_LABEL[label] ||
+    "tone" + (rows.length % 10);
+  rows.push({ id: id, label: label, value: String(value) });
 }
 
 function buildBehaviorDetailSections() {
@@ -124,8 +141,12 @@ function buildBehaviorDetailSections() {
     sections.push({
       id: "byModule",
       title: "模块行为统计",
-      rows: moduleKeys.map(function (key) {
-        return { label: moduleLabel(key), value: stats.byModule[key] + " 次" };
+      rows: moduleKeys.map(function (key, index) {
+        return {
+          id: "tone" + (index % 10),
+          label: moduleLabel(key),
+          value: stats.byModule[key] + " 次",
+        };
       }),
     });
   }
@@ -135,14 +156,21 @@ function buildBehaviorDetailSections() {
     pushRows(
       checkinRows,
       "问卷提交 " + (index + 1),
-      formatDateTime(item.at) + "（" + item.hour + " 时，第 " + (item.sessionId || 1) + " 轮）"
+      formatDateTime(item.at) +
+        "（" +
+        item.hour +
+        " 时，第 " +
+        (item.sessionId || 1) +
+        " 轮）",
+      "tone" + (index % 10)
     );
   });
   (meta.checkinSessions || []).forEach(function (item, index) {
     pushRows(
       checkinRows,
       "完成轮次 " + (index + 1),
-      formatDateTime(item.at) + (item.date ? "（" + item.date + "）" : "")
+      formatDateTime(item.at) + (item.date ? "（" + item.date + "）" : ""),
+      "tone" + ((index + 3) % 10)
     );
   });
   if (checkinRows.length) {
@@ -151,7 +179,7 @@ function buildBehaviorDetailSections() {
 
   var diaryRows = [];
   (meta.diaryWordCounts || []).forEach(function (count, index) {
-    pushRows(diaryRows, "日记 " + (index + 1), count + " 字");
+    pushRows(diaryRows, "日记 " + (index + 1), count + " 字", "avgDiary");
   });
   if (diaryRows.length) {
     sections.push({ id: "diary", title: "日记行为", rows: diaryRows });
@@ -159,10 +187,15 @@ function buildBehaviorDetailSections() {
 
   var voiceRows = [];
   (meta.voiceDurations || []).forEach(function (sec, index) {
-    pushRows(voiceRows, "录音 " + (index + 1), sec + " 秒");
+    pushRows(voiceRows, "录音 " + (index + 1), sec + " 秒", "avgVoice");
   });
   (stats.voiceSkipRecords || []).forEach(function (item, index) {
-    pushRows(voiceRows, "跳过记录 " + (index + 1), formatDateTime(item.at || item));
+    pushRows(
+      voiceRows,
+      "跳过记录 " + (index + 1),
+      formatDateTime(item.at || item),
+      "voiceSkips"
+    );
   });
   if (voiceRows.length) {
     sections.push({ id: "voice", title: "语音行为", rows: voiceRows });
@@ -170,10 +203,15 @@ function buildBehaviorDetailSections() {
 
   var videoRows = [];
   (meta.videoDurations || []).forEach(function (sec, index) {
-    pushRows(videoRows, "录制 " + (index + 1), sec + " 秒");
+    pushRows(videoRows, "录制 " + (index + 1), sec + " 秒", "avgVideo");
   });
   (stats.videoSkipRecords || []).forEach(function (item, index) {
-    pushRows(videoRows, "跳过记录 " + (index + 1), formatDateTime(item.at || item));
+    pushRows(
+      videoRows,
+      "跳过记录 " + (index + 1),
+      formatDateTime(item.at || item),
+      "videoSkips"
+    );
   });
   if (videoRows.length) {
     sections.push({ id: "video", title: "视频行为", rows: videoRows });
@@ -184,7 +222,12 @@ function buildBehaviorDetailSections() {
     var ms = item && item.ms != null ? item.ms : item;
     var route = item && item.route ? "（" + item.route + "）" : "";
     var sec = typeof ms === "number" ? Math.round(ms / 100) / 10 : ms;
-    pushRows(taskRows, "任务 " + (index + 1), sec + " 秒" + route);
+    pushRows(
+      taskRows,
+      "任务 " + (index + 1),
+      sec + " 秒" + route,
+      "tone" + (index % 10)
+    );
   });
   if (taskRows.length) {
     sections.push({ id: "task", title: "任务耗时", rows: taskRows });

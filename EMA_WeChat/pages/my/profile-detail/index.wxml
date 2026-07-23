@@ -1,11 +1,19 @@
 <view class="page-pad">
-  <view class="card" wx:if="{{hasBaseline}}">
+  <view class="card kv-card" wx:if="{{hasBaseline}}">
     <view class="hint baseline-time" wx:if="{{baselineTimeStr}}">基线测评完成时间：{{baselineTimeStr}}</view>
     <block wx:for="{{sections}}" wx:key="id">
       <view class="section-title">{{item.title}}</view>
-      <view class="profile-row" wx:for="{{item.rows}}" wx:for-item="row" wx:key="label">
-        <text class="profile-label">{{row.label}}</text>
-        <text class="profile-value">{{row.value}}</text>
+      <view class="kv-list">
+        <view
+          class="profile-row {{rowIndex === item.rows.length - 1 ? 'is-last' : ''}}"
+          wx:for="{{item.rows}}"
+          wx:for-item="row"
+          wx:for-index="rowIndex"
+          wx:key="label"
+        >
+          <text class="profile-label label-{{row.id}}">{{row.label}}</text>
+          <text class="profile-value">{{row.value}}</text>
+        </view>
       </view>
     </block>
   </view>

@@ -9,12 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.config import get_settings  # noqa: E402
-from app.client_types import CLIENT_TYPE_WEB, CLIENT_TYPE_APP  # noqa: E402
-from app.database import engine, get_base, iter_engines  # noqa: E402
-# 注册三端独立模型到各自 Base.metadata（无共用表）
-import app.models.app  # noqa: E402,F401
+from app.client_types import CLIENT_TYPE_WEB  # noqa: E402
+from app.database import engine, get_base, get_engine  # noqa: E402
+# 注册 web 模型到 WebBase.metadata（三端共用）
 import app.models.web  # noqa: E402,F401
-import app.models.wechat  # noqa: E402,F401
 
 # Migration helpers use _active_engine; main() switches per client DB.
 _active_engine = engine
@@ -465,6 +463,42 @@ def ensure_drop_user_login_logs_user_name() -> None:
         print("Dropped user_login_logs.user_name column.")
 
 
+def ensure_user_login_logs_client_type() -> None:
+    """ema_web：为 user_login_logs 补充 client_type 列。"""
+    with _active_engine.connect() as conn:
+        has_col = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_login_logs' "
+                "AND COLUMN_NAME = 'client_type'"
+            )
+        ).scalar()
+        if has_col:
+            return
+        conn.execute(
+            text(
+                "ALTER TABLE user_login_logs "
+                "ADD COLUMN client_type VARCHAR(16) NOT NULL DEFAULT 'web' "
+                "COMMENT '终端类型：wechat / web / app' AFTER user_id"
+            )
+        )
+        conn.commit()
+        print("Added user_login_logs.client_type column.")
+        has_idx = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_login_logs' "
+                "AND INDEX_NAME = 'idx_login_log_client'"
+            )
+        ).scalar()
+        if not has_idx:
+            conn.execute(
+                text("ALTER TABLE user_login_logs ADD KEY idx_login_log_client (client_type)")
+            )
+            conn.commit()
+            print("Added user_login_logs.idx_login_log_client.")
+
+
 def ensure_web_admin_user(client_type: str) -> None:
     """ema_web：默认管理员 admin / 123456 / role=0。"""
     if client_type != CLIENT_TYPE_WEB:
@@ -491,53 +525,28 @@ def ensure_web_admin_user(client_type: str) -> None:
         db.close()
 
 
-def ensure_app_admin_user(client_type: str) -> None:
-    """ema_app：默认管理员 admin / 123456 / role=0。"""
-    if client_type != CLIENT_TYPE_APP:
-        return
-    from app.database import get_session_factory
-    from app.models.app import User
-
-    db = get_session_factory(client_type)()
-    try:
-        if db.query(User).filter(User.user_name == "admin").first():
-            return
-        db.add(
-            User(
-                user_name="admin",
-                psw="123456",
-                role=0,
-                study_status="active",
-                login_count=0,
-            )
-        )
-        db.commit()
-        print("Seeded default app admin user (user_name=admin, psw=123456, role=0).")
-    finally:
-        db.close()
-
-
 def main() -> None:
     global _active_engine
     ensure_database()
-    for client_type, eng in iter_engines():
-        print(f"--- Initializing tables for client_type={client_type} ---")
-        _active_engine = eng
-        get_base(client_type).metadata.create_all(bind=eng)
-        ensure_session_key_column()
-        ensure_logout_at_column()
-        ensure_risk_session_columns()
-        ensure_feedback_session_columns()
-        ensure_baseline_completed_at_column()
-        ensure_ms_to_datetime_columns()
-        ensure_users_logout_at_and_openid_index()
-        ensure_feature_session_columns()
-        ensure_drop_research_id_unique()
-        ensure_web_users_participation_constraints()
-        ensure_drop_user_login_logs_user_name()
-        ensure_web_admin_user(client_type)
-        # ensure_app_admin_user(client_type)
-    print("Tables created successfully for all client databases.")
+    # 三端共用 ema_web：只初始化一次
+    eng = get_engine(CLIENT_TYPE_WEB)
+    _active_engine = eng
+    print("--- Initializing tables for shared ema_web ---")
+    get_base(CLIENT_TYPE_WEB).metadata.create_all(bind=eng)
+    ensure_session_key_column()
+    ensure_logout_at_column()
+    ensure_user_login_logs_client_type()
+    ensure_risk_session_columns()
+    ensure_feedback_session_columns()
+    ensure_baseline_completed_at_column()
+    ensure_ms_to_datetime_columns()
+    ensure_users_logout_at_and_openid_index()
+    ensure_feature_session_columns()
+    ensure_drop_research_id_unique()
+    ensure_web_users_participation_constraints()
+    ensure_drop_user_login_logs_user_name()
+    ensure_web_admin_user(CLIENT_TYPE_WEB)
+    print("Tables created successfully for shared ema_web.")
 
 
 if __name__ == "__main__":

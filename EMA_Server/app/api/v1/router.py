@@ -80,9 +80,9 @@ router = APIRouter()
     response_model=ApiResponse,
     summary="客户端登录",
     description=(
-        "使用 code 换取 openid 与 JWT。请求体须传 client_type（wechat|web|app），"
-        "服务端按类型连接对应库（ema / ema_web / ema_app），并将 client_type 写入 JWT；"
-        "后续请求凭 token 自动选库。"
+        "使用 code 换取 openid 与 JWT（遗留接口）。"
+        "三端业务库已统一为 ema_web；client_type 写入 JWT 用于终端区分。"
+        "微信小程序请优先使用 /auth/login 用户名密码登录。"
     ),
 )
 async def auth_wx_login(body: WxLoginRequest):
@@ -103,12 +103,13 @@ async def auth_wx_login(body: WxLoginRequest):
 @router.post(
     "/auth/login",
     response_model=ApiResponse,
-    summary="Web 用户名密码登录",
+    summary="用户名密码登录",
     description=(
-        "校验 ema_web.users 的 user_name / psw，签发含 client_type=web 的 JWT。"
+        "校验 ema_web.users 的 user_name / psw，签发含 client_type 的 JWT，"
+        "并写入 user_login_logs.client_type。"
+        "client_type 可为 wechat|web|app；微信小程序仅允许普通用户，管理员请用 Web 端。"
         "默认管理员：admin / 123456（role=0）。"
-        "普通用户若 study_status=exited，密码正确则新建一条 active 参与记录"
-        "（同名 user_name 允许多轮；唯一约束为 id+research_id），"
+        "普通用户若 study_status=exited，密码正确则新建一条 active 参与记录，"
         "需重新知情同意并绑定基线。"
     ),
 )
@@ -130,10 +131,10 @@ def auth_password_login(body: PasswordLoginRequest):
 @router.post(
     "/auth/change-password",
     response_model=ApiResponse,
-    summary="Web 修改密码",
+    summary="修改密码",
     description=(
         "登录页自助改密：校验用户名与原密码后更新新密码。"
-        "同名多轮参与记录会一并更新。无需先登录。"
+        "client_type 可为 wechat|web|app。同名多轮参与记录会一并更新。无需先登录。"
     ),
 )
 def auth_change_password(body: ChangePasswordRequest):

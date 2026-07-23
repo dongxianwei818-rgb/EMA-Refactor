@@ -21,6 +21,7 @@ function postCheckinSession(path, data) {
       header: {
         "content-type": "application/json",
         Authorization: "Bearer " + token,
+        "X-Client-Type": "wechat",
       },
       data: data,
       success: function (res) {
@@ -46,7 +47,7 @@ function startCheckinSession(sessionId, startedAtMs, taskDate) {
     task_date: taskDate || ema.getTodayKey(),
     session_id: sessionId || 1,
     started_at: dt.formatClientAt(startedAtMs),
-    checkin_day: wx.getStorageSync("ema_checkin_day") || null,
+    checkin_day: ema.getCheckinDaySnapshot() || null,
   };
   return postCheckinSession("/checkin/session/start", payload).catch(function (err) {
     if (err && err.message === "未登录") {
@@ -62,7 +63,7 @@ function completeCheckinSession(sessionId, completedAtMs, taskDate) {
     task_date: taskDate || ema.getTodayKey(),
     session_id: sessionId || 1,
     completed_at: dt.formatClientAt(completedAtMs),
-    checkin_day: wx.getStorageSync("ema_checkin_day") || null,
+    checkin_day: ema.getCheckinDaySnapshot() || null,
   });
 }
 

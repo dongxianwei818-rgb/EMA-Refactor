@@ -47,10 +47,19 @@ class User(Base):
 
 class UserLoginLog(Base):
     __tablename__ = "user_login_logs"
-    __table_args__ = (Index("idx_login_log_user_time", "user_id", "logged_at"),)
+    __table_args__ = (
+        Index("idx_login_log_user_time", "user_id", "logged_at"),
+        Index("idx_login_log_client", "client_type"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    client_type: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="web",
+        comment="终端类型：wechat / web / app",
+    )
     logged_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     logout_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="登出时间")
 

@@ -1,5 +1,4 @@
 var ema = require("./ema");
-var auth = require("./auth");
 
 var TOKEN_KEY = "ema_auth_token";
 
@@ -15,17 +14,23 @@ function clearToken() {
   wx.removeStorageSync(TOKEN_KEY);
 }
 
+/** 可选批次推送：从内存会话仓组包（权威写入仍走各业务实时接口） */
 function collectPayload() {
+  var store = require("./sessionStore").getStore();
   return {
     consent: ema.getConsent(),
-    baseline: wx.getStorageSync("ema_baseline") || null,
+    baseline: store.baseline || null,
     login_count: ema.getLoginCount(),
-    steps_history: wx.getStorageSync("ema_steps_history") || [],
-    steps_baseline: wx.getStorageSync("ema_steps_baseline") || null,
+    steps_history: store.stepsHistory || [],
+    steps_baseline: store.stepsBaseline || null,
     video_skips: ema.getVideoSkips(),
     voice_skips: ema.getVoiceSkips(),
-    checkin_day: wx.getStorageSync("ema_checkin_day") || null,
-    video_dates: wx.getStorageSync("ema_video_dates") || [],
+    checkin_day: store.checkinDay || null,
+    video_dates: store.videoDates || [],
+    submissions: store.submissions || [],
+    daily_tasks: store.dailyTasks || {},
+    behavior_meta: store.behaviorMeta || {},
+    behavior_logs: store.behaviorLogs || [],
   };
 }
 
@@ -47,6 +52,7 @@ function pushToServer() {
       header: {
         "content-type": "application/json",
         Authorization: "Bearer " + token,
+        "X-Client-Type": "wechat",
       },
       data: collectPayload(),
       success: function (res) {
@@ -80,7 +86,10 @@ function pullFromServer() {
     wx.request({
       url: C.API_BASE_URL.replace(/\/$/, "") + "/sync/pull",
       method: "GET",
-      header: { Authorization: "Bearer " + token },
+      header: {
+        Authorization: "Bearer " + token,
+        "X-Client-Type": "wechat",
+      },
       success: function (res) {
         if (res.statusCode === 200 && res.data && res.data.code === 0) {
           resolve(res.data.data);

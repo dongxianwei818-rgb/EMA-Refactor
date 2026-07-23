@@ -40,6 +40,11 @@
         <view class="risk-badge {{risk.forecast.peakLevelClass}}">{{risk.forecast.peakLevelLabel}}</view>
       </view>
       <view class="risk-summary">{{risk.forecast.summary}}</view>
+      <view class="forecast-stats">
+        <text>重点天数 <text class="forecast-stats-em">{{risk.forecast.highRiskDays || 0}}</text></text>
+        <text>中等天数 <text class="forecast-stats-em">{{risk.forecast.mediumRiskDays || 0}}</text></text>
+        <text>前瞻预警 <text class="forecast-stats-em">{{risk.forecast.alertCount || 0}}</text></text>
+      </view>
       <view class="forecast-chart">
         <view class="forecast-day" wx:for="{{risk.forecast.days}}" wx:key="dayIndex">
           <text class="forecast-date">{{item.dateLabel}}</text>
@@ -54,22 +59,83 @@
         <text class="legend-item legend-medium">中</text>
         <text class="legend-item legend-high">高</text>
       </view>
+      <view wx:if="{{risk.forecast.alerts && risk.forecast.alerts.length}}" class="forecast-alerts">
+        <view class="alert-group-title">前瞻预警条目</view>
+        <view class="alert-item alert-{{item.level}}" wx:for="{{risk.forecast.alerts}}" wx:key="id">
+          <view class="alert-item-head">
+            <text class="alert-level-tag">{{item.levelLabel}}</text>
+            <text wx:if="{{item.metric}}" class="alert-category">{{item.metric}}</text>
+          </view>
+          <view class="alert-title">{{item.title}}</view>
+          <view class="alert-desc">{{item.desc}}</view>
+        </view>
+      </view>
+      <view wx:else class="risk-no-alert">暂无显著的未来 7 天预警信号。</view>
     </view>
 
-    <!-- 3. 个体异常预警 -->
+    <!-- 3. 未来30天风险预测 -->
+    <view class="trends-section card forecast30-card">
+      <view class="panel-tag panel-tag--forecast30">03</view>
+      <view class="section-title">未来 30 天风险预测</view>
+      <view class="forecast-head">
+        <view class="forecast-trend">
+          <text class="forecast-trend-label">趋势走向</text>
+          <text class="forecast-trend-value forecast-trend-value--30">{{risk.forecast30.trendLabel}}</text>
+        </view>
+        <view class="risk-badge {{risk.forecast30.peakLevelClass}}">{{risk.forecast30.peakLevelLabel}}</view>
+      </view>
+      <view class="risk-summary">{{risk.forecast30.summary}}</view>
+      <view class="forecast-stats">
+        <text>重点天数 <text class="forecast-stats-em">{{risk.forecast30.highRiskDays || 0}}</text></text>
+        <text>中等天数 <text class="forecast-stats-em">{{risk.forecast30.mediumRiskDays || 0}}</text></text>
+        <text>前瞻预警 <text class="forecast-stats-em">{{risk.forecastAlertCount || 0}}</text></text>
+      </view>
+      <view class="forecast-chart">
+        <view class="forecast-day" wx:for="{{risk.forecast30.days}}" wx:key="dayIndex">
+          <text class="forecast-date">{{item.dateLabel}}</text>
+          <view class="forecast-bar-wrap">
+            <view class="forecast-bar forecast-bar-{{item.level}}" style="width: {{item.barWidth}}%;" />
+          </view>
+          <text class="forecast-score">{{item.score}}</text>
+        </view>
+      </view>
+      <view class="forecast-legend">
+        <text class="legend-item legend-low">低</text>
+        <text class="legend-item legend-medium">中</text>
+        <text class="legend-item legend-high">高</text>
+      </view>
+      <view wx:if="{{risk.forecastAlerts && risk.forecastAlerts.length}}" class="forecast-alerts">
+        <view class="alert-group-title">前瞻预警条目</view>
+        <view class="alert-item alert-{{item.level}}" wx:for="{{risk.forecastAlerts}}" wx:key="id">
+          <view class="alert-item-head">
+            <text class="alert-level-tag">{{item.levelLabel}}</text>
+            <text wx:if="{{item.metric}}" class="alert-category">{{item.metric}}</text>
+          </view>
+          <view class="alert-title">{{item.title}}</view>
+          <view class="alert-desc">{{item.desc}}</view>
+        </view>
+      </view>
+      <view wx:else class="risk-no-alert">暂无显著的未来 30 天预警信号。</view>
+    </view>
+
+    <!-- 4. 个体异常预警 -->
     <view class="trends-section card alert-card">
-      <view class="panel-tag panel-tag--alert">03</view>
+      <view class="panel-tag panel-tag--alert">04</view>
       <view class="section-title">个体异常预警</view>
       <view wx:if="{{risk.alertCount === 0}}" class="risk-no-alert">暂无异常信号，状态整体平稳。</view>
       <view class="alert-item alert-{{item.level}}" wx:for="{{risk.alerts}}" wx:key="id">
+        <view class="alert-item-head" wx:if="{{item.levelLabel}}">
+          <text class="alert-level-tag">{{item.levelLabel}}</text>
+          <text wx:if="{{item.metric}}" class="alert-category">{{item.metric}}</text>
+        </view>
         <view class="alert-title">{{item.title}}</view>
         <view class="alert-desc">{{item.desc}}</view>
       </view>
     </view>
 
-		<!-- 4. 打卡概况 -->
+		<!-- 5. 打卡概况 -->
 		<view class="trends-section card record-card">
-      <view class="panel-tag panel-tag--record">04</view>
+      <view class="panel-tag panel-tag--record">05</view>
       <view class="section-title">打卡概况</view>
       <view wx:if="{{!hasData}}" class="risk-no-alert">暂无打卡概况数据。</view>
 			<view wx:else>

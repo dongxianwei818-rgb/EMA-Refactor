@@ -2,32 +2,103 @@ var ema = require("../../utils/ema");
 var consentApi = require("../../utils/consent");
 var profileUtil = require("../../utils/profile");
 var tracker = require("../../utils/tracker");
-var sync = require("../../utils/sync");
 var auth = require("../../utils/auth");
-var onboarding = require("../../utils/onboarding");
 
 Page({
   data: {
     profile: {},
+    userName: "—",
     basicInfo: [],
+    behaviorInfo: [],
     hasProfile: false,
     hasBaseline: false,
     hasConsent: false,
     stats: {},
+    loggingOut: false,
   },
   onShow: function () {
     if (typeof this.getTabBar === "function" && this.getTabBar()) {
       this.getTabBar().setData({ selected: 4 });
     }
-    tracker.trackEvent("my", "view");
-    var profile = ema.getProfile();
+    var that = this;
+    var hydrate = require("../../utils/hydrate");
+    if (!auth.isLoggedIn()) {
+      wx.reLaunch({ url: "/pages/login/index" });
+      return;
+    }
+    hydrate
+      .hydrateFromServer()
+      .catch(function (err) {
+        console.warn("我的页 hydrate 失败", (err && err.message) || err);
+      })
+      .then(function () {
+        tracker.trackEvent("my", "view");
+        that.refresh();
+      });
+  },
+  refresh: function () {
+    var profile = ema.getProfile() || {};
+    var stats = tracker.getBehaviorStats() || {};
+    var hours = stats.checkinHours || [];
+    var checkinHoursText = hours.length ? hours.join(", ") : "—";
+    var userName =
+      profile.userName ||
+      profile.user_name ||
+      auth.getUserName() ||
+      "—";
     this.setData({
       profile: profile,
+      userName: userName,
       basicInfo: profileUtil.buildBasicSummary(profile),
+      behaviorInfo: [
+        { id: "openCount", label: "打开次数", value: stats.openCount || 0, unit: "次" },
+        {
+          id: "missedDays",
+          label: "连续缺测天数",
+          value: stats.missedDays || 0,
+          unit: "天",
+        },
+        {
+          id: "avgDiary",
+          label: "平均日记字数",
+          value: stats.avgDiaryWords || 0,
+          unit: "字",
+        },
+        {
+          id: "avgVoice",
+          label: "平均语音时长",
+          value: stats.avgVoiceSec || 0,
+          unit: "秒",
+        },
+        {
+          id: "avgVideo",
+          label: "平均视频时长",
+          value: stats.avgVideoSec || 0,
+          unit: "秒",
+        },
+        {
+          id: "voiceSkips",
+          label: "语音跳过次数",
+          value: stats.voiceSkips || 0,
+          unit: "次",
+        },
+        {
+          id: "videoSkips",
+          label: "视频跳过次数",
+          value: stats.videoSkips || 0,
+          unit: "次",
+        },
+        {
+          id: "checkinHours",
+          label: "最近打卡时段(时)",
+          value: checkinHoursText,
+          unit: "时",
+        },
+      ],
       hasProfile: ema.isOnboardingComplete(),
       hasBaseline: ema.isResearchBound(),
       hasConsent: ema.hasConsent(),
-      stats: tracker.getBehaviorStats(),
+      stats: stats,
     });
   },
   goBehaviorDetail: function () {
@@ -106,19 +177,34 @@ Page({
               });
             })
             .then(function () {
-              sync.clearToken();
+              auth.clearSession();
               wx.clearStorageSync();
-              return onboarding.loginWithOnboardingRedirect({
-                reLaunch: true,
-                fallbackUrl: "/pages/onboarding/consent/index",
-              });
+              wx.reLaunch({ url: "/pages/login/index" });
             })
             .catch(function (err) {
-              console.warn("退出研究后重新登录失败", err);
-              wx.showToast({ title: "请重新打开小程序", icon: "none" });
+              console.warn("退出研究失败", err);
+              wx.reLaunch({ url: "/pages/login/index" });
             });
         }
       },
     });
+  },
+  logout: function () {
+    var that = this;
+    if (that.data.loggingOut) return;
+    that.setData({ loggingOut: true });
+    tracker.trackEvent("my", "logout");
+    auth
+      .logout()
+      .then(function () {
+        wx.reLaunch({ url: "/pages/login/index" });
+      })
+      .catch(function () {
+        auth.clearSession();
+        wx.reLaunch({ url: "/pages/login/index" });
+      })
+      .then(function () {
+        that.setData({ loggingOut: false });
+      });
   },
 });

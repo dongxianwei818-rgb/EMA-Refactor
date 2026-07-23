@@ -1,4 +1,3 @@
-var ema = require("./utils/ema");
 var tracker = require("./utils/tracker");
 var auth = require("./utils/auth");
 var onboarding = require("./utils/onboarding");
@@ -9,17 +8,18 @@ App({
     this._wasHidden = false;
     tracker.trackEvent("app", "app_launch");
     onboarding
-      .loginWithOnboardingRedirect()
+      .resumeSessionWithOnboarding()
       .then(function (loginData) {
-        console.log("WeChat user id:", loginData.openid);
+        console.log("WeChat user id:", loginData && loginData.openid);
       })
       .catch(function (err) {
-        console.warn("登录失败", (err && err.message) || err);
+        console.warn("会话恢复", (err && err.message) || err);
       });
   },
   onShow: function () {
     if (this._wasHidden) {
       this._wasHidden = false;
+      if (!auth.isLoggedIn()) return;
       auth
         .recordLoginLog()
         .then(function () {

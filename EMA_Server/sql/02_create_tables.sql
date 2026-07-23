@@ -1,46 +1,46 @@
 -- =============================================================================
--- EMA 服务端建表脚本（与 SQLAlchemy ORM 模型一致）
--- 用途：存储微信小程序采集的生态瞬时评估（EMA）数据，支撑同步、分析与风险预警
--- 执行：先运行 01_create_database.sql，再分别在 ema / ema_web / ema_app 中执行本脚本
--- （或直接运行 python scripts/init_db.py 一次性初始化三库）
+-- EMA 服务端建表脚本（与 SQLAlchemy Web ORM 模型一致）
+-- 用途：wechat / web / app 三端共用 ema_web 库表
+-- 执行：先运行 01_create_database.sql，再对本脚本执行一次（USE ema_web）
+-- （或直接运行 python scripts/init_db.py 初始化 ema_web）
 -- =============================================================================
 
-USE `ema`;
+USE `ema_web`;
 
 -- -----------------------------------------------------------------------------
 -- 用户与授权
 -- -----------------------------------------------------------------------------
 
--- users：研究参与者主表
--- 作用：同一 openid 可有多条参与记录（退出后重新入组新建一行）；
---       绑定研究编号，记录登录次数、研究状态与退出时间；session_key 用于解密微信运动等加密数据。
+-- users：研究参与者主表（三端统一：用户名/密码/角色）
 CREATE TABLE IF NOT EXISTS `users` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '参与记录主键',
-  `openid` VARCHAR(64) NOT NULL COMMENT '微信小程序 openid，同一 openid 可有多条参与记录',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名（可重复，按 id 区分参与轮次）',
+  `psw` VARCHAR(128) NULL COMMENT '用户密码',
+  `role` INT NULL DEFAULT 1 COMMENT '0=管理员；1 或空=普通用户',
   `research_id` VARCHAR(64) NULL COMMENT '研究编号，同一编号可有多轮参与记录',
-  `login_count` INT NOT NULL DEFAULT 0 COMMENT '累计登录次数（每次 wx-login 递增）',
+  `login_count` INT NOT NULL DEFAULT 0 COMMENT '累计登录次数',
   `study_status` VARCHAR(32) NOT NULL DEFAULT 'active' COMMENT '研究状态：active / revoke / exited',
-  `session_key` VARCHAR(128) NULL COMMENT '微信 session_key，用于解密 encryptedData',
+  `session_key` VARCHAR(128) NULL COMMENT '微信 session_key（可选）',
   `logout_at` DATETIME NULL COMMENT '退出研究时间',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '账号创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
   PRIMARY KEY (`id`),
-  KEY `idx_users_openid` (`openid`),
-  KEY `idx_users_research_id` (`research_id`)
+  KEY `idx_users_user_name` (`user_name`),
+  KEY `idx_users_research_id` (`research_id`),
+  UNIQUE KEY `uk_users_id_research_id` (`id`, `research_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='研究参与者主表';
+  COMMENT='研究参与者主表（三端共用）';
 
--- user_login_logs：用户登录流水
--- 作用：每次小程序进入前台时写入一条记录；进入后台时更新 logout_at。
+-- user_login_logs：用户登录流水（含终端类型）
 CREATE TABLE IF NOT EXISTS `user_login_logs` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '登录记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '登录时的 openid（冗余，便于查询）',
+  `client_type` VARCHAR(16) NOT NULL DEFAULT 'web' COMMENT '终端类型：wechat / web / app',
   `logged_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
-  `logout_at` DATETIME NULL COMMENT '登出时间（小程序进入后台时写入）',
+  `logout_at` DATETIME NULL COMMENT '登出时间',
   PRIMARY KEY (`id`),
   KEY `idx_login_log_user` (`user_id`),
-  KEY `idx_login_log_openid` (`openid`),
+  KEY `idx_login_log_client` (`client_type`),
   KEY `idx_login_log_user_time` (`user_id`, `logged_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='用户登录流水表';
@@ -63,14 +63,14 @@ CREATE TABLE IF NOT EXISTS `consent_records` (
 CREATE TABLE IF NOT EXISTS `consent_authorization_logs` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '用户 openid（冗余，便于查询）',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名或 users.id 字符串（冗余）',
   `status` VARCHAR(16) NOT NULL COMMENT '状态：accept 同意 / revoke 撤销 / exit 退出',
   `event_info` JSON NOT NULL COMMENT '事件信息 JSON，如来源页面、操作渠道等',
   `client_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '客户端操作时间',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '服务端入库时间',
   PRIMARY KEY (`id`),
   KEY `idx_consent_auth_user` (`user_id`),
-  KEY `idx_consent_auth_openid` (`openid`),
+  KEY `idx_consent_auth_user_name` (`user_name`),
   KEY `idx_consent_auth_user_time` (`user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='知情同意与授权流水表';
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS `submissions` (
 CREATE TABLE IF NOT EXISTS `ema_questions` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '用户 openid（冗余，便于查询）',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名或 users.id 字符串（冗余）',
   `session_id` INT NOT NULL DEFAULT 1 COMMENT '当日第几次打卡会话',
   `task_date` VARCHAR(16) NOT NULL COMMENT '任务日期，格式 YYYY-MM-DD',
   `answered_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '答题时间',
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS `ema_questions` (
 CREATE TABLE IF NOT EXISTS `ema_diary` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '用户 openid（冗余，便于查询）',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名或 users.id 字符串（冗余）',
   `session_id` INT NOT NULL DEFAULT 1 COMMENT '当日第几次打卡会话',
   `task_date` VARCHAR(16) NOT NULL COMMENT '任务日期，格式 YYYY-MM-DD',
   `written_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',
@@ -185,7 +185,7 @@ CREATE TABLE IF NOT EXISTS `ema_diary` (
 CREATE TABLE IF NOT EXISTS `ema_voice` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '用户 openid（冗余，便于查询）',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名或 users.id 字符串（冗余）',
   `session_id` INT NOT NULL DEFAULT 1 COMMENT '当日第几次打卡会话',
   `task_date` VARCHAR(16) NOT NULL COMMENT '任务日期，格式 YYYY-MM-DD',
   `recorded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '录音时间',
@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS `ema_voice` (
 CREATE TABLE IF NOT EXISTS `ema_video` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '用户 openid（冗余，便于查询）',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名或 users.id 字符串（冗余）',
   `session_id` INT NOT NULL DEFAULT 1 COMMENT '当日第几次打卡会话',
   `task_date` VARCHAR(16) NOT NULL COMMENT '任务日期，格式 YYYY-MM-DD',
   `recorded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '录制时间',
@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS `steps_records` (
 CREATE TABLE IF NOT EXISTS `ema_step` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录主键',
   `user_id` BIGINT NOT NULL COMMENT '关联 users.id',
-  `openid` VARCHAR(64) NOT NULL COMMENT '用户 openid（冗余，便于查询）',
+  `user_name` VARCHAR(64) NOT NULL COMMENT '登录用户名或 users.id 字符串（冗余）',
   `session_id` INT NOT NULL DEFAULT 1 COMMENT '当日第几次打卡会话',
   `task_date` VARCHAR(16) NOT NULL COMMENT '任务日期，格式 YYYY-MM-DD',
   `recorded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '提交时间',

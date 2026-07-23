@@ -25,27 +25,27 @@ class WxLoginRequest(BaseModel):
 
 
 class PasswordLoginRequest(BaseModel):
-    """Web 端用户名密码登录。"""
+    """用户名密码登录（wechat / web / app 共用 ema_web）。"""
 
     user_name: str = Field(..., min_length=1, max_length=64, description="登录用户名")
     psw: str = Field(..., min_length=1, max_length=128, description="登录密码")
     client_type: str = Field(
         default="web",
-        description="客户端类型，密码登录仅支持 web",
-        pattern="^web$",
+        description="客户端类型：wechat | web | app（微信端不允许管理员登录）",
+        pattern="^(wechat|web|app)$",
     )
 
 
 class ChangePasswordRequest(BaseModel):
-    """Web 端登录页修改密码（需校验原密码，无需先登录）。"""
+    """登录页修改密码（需校验原密码，无需先登录）。"""
 
     user_name: str = Field(..., min_length=1, max_length=64, description="登录用户名")
     old_psw: str = Field(..., min_length=1, max_length=128, description="原密码")
     new_psw: str = Field(..., min_length=1, max_length=128, description="新密码")
     client_type: str = Field(
         default="web",
-        description="客户端类型，仅支持 web",
-        pattern="^web$",
+        description="客户端类型：wechat | web | app",
+        pattern="^(wechat|web|app)$",
     )
 
 

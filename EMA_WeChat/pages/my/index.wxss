@@ -1,45 +1,4 @@
-.profile-row {
-  display: flex;
-  align-items: flex-start;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #f0f2f4;
-}
-
-.profile-row:last-child {
-  border-bottom: none;
-}
-
-.profile-label {
-  flex: 1;
-  font-size: 26rpx;
-  color: #666;
-  line-height: 1.5;
-  padding-right: 16rpx;
-}
-
-.profile-value {
-  flex-shrink: 0;
-  max-width: 55%;
-  font-size: 26rpx;
-  color: #333;
-  font-weight: 500;
-  text-align: right;
-  line-height: 1.5;
-  word-break: break-all;
-}
-
-.profile-id {
-  font-size: 34rpx;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8rpx;
-}
-
-.profile-empty {
-  font-size: 26rpx;
-  color: #999;
-  line-height: 1.6;
-}
+@import "./kv-pill.wxss";
 
 .profile-card {
   position: relative;
@@ -54,9 +13,38 @@
 
 .profile-card-head .section-title {
   margin-bottom: 0;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
 }
 
 .profile-more {
   font-size: 24rpx;
   color: #07c160;
+}
+
+.profile-id {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #222;
+  line-height: 1.4;
+  margin: 8rpx 0 8rpx;
+}
+
+.kv-list {
+  margin-top: 4rpx;
+}
+
+.kv-footnote {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #999;
+  line-height: 1.5;
+}
+
+.profile-empty {
+  font-size: 26rpx;
+  color: #999;
+  line-height: 1.6;
+  margin-top: 8rpx;
 }

@@ -97,20 +97,17 @@ class Settings(BaseSettings):
         return path
 
     def db_name_for_client(self, client_type: str) -> str:
-        from app.client_types import CLIENT_TYPE_APP, CLIENT_TYPE_WEB, CLIENT_TYPE_WECHAT
+        """三端统一使用 ema_web 库表结构。"""
+        from app.client_types import VALID_CLIENT_TYPES
 
-        mapping = {
-            CLIENT_TYPE_WECHAT: self.db_name,
-            CLIENT_TYPE_WEB: self.db_name_web,
-            CLIENT_TYPE_APP: self.db_name_app,
-        }
-        if client_type not in mapping:
+        if client_type not in VALID_CLIENT_TYPES:
             raise ValueError(f"未知 client_type: {client_type}")
-        return mapping[client_type]
+        return self.db_name_web
 
     @property
     def all_db_names(self) -> list[str]:
-        return [self.db_name, self.db_name_web, self.db_name_app]
+        """初始化时仅创建共享业务库 ema_web。"""
+        return [self.db_name_web]
 
     def database_url_for(self, db_name: str) -> str:
         return (
@@ -120,8 +117,8 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """默认库（wechat / ema）连接 URL。"""
-        return self.database_url_for(self.db_name)
+        """默认业务库（ema_web）连接 URL。"""
+        return self.database_url_for(self.db_name_web)
 
     @property
     def server_url(self) -> str:

@@ -1,0 +1,159 @@
+/* 详情页 KV 列表：左侧彩色胶囊标签（与「我的」页一致） */
+.kv-list .profile-row,
+.kv-card .profile-row {
+  display: flex;
+  align-items: center;
+  min-height: 80rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f2f4;
+  gap: 20rpx;
+}
+
+.kv-list .profile-row.is-last,
+.kv-card .profile-row.is-last {
+  border-bottom: none;
+}
+
+.profile-label.pill,
+.kv-list .profile-label,
+.kv-card .profile-label {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  font-size: 22rpx;
+  font-weight: 600;
+  padding: 8rpx 18rpx;
+  border-radius: 12rpx;
+  text-align: center;
+  line-height: 1.3;
+  /* max-width: 240rpx; */
+  background: #f5f5f5;
+  color: #595959;
+}
+
+.profile-value.pill-value,
+.kv-list .profile-value,
+.kv-card .profile-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+  text-align: right;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.label-researchId,
+.label-tone0,
+.kv-list .profile-label.label-researchId,
+.kv-card .profile-label.label-researchId,
+.kv-list .profile-label.label-tone0,
+.kv-card .profile-label.label-tone0 {
+  background: #ebe8ff;
+  color: #722ed1;
+}
+
+.label-age,
+.label-openCount,
+.label-tone1,
+.kv-list .profile-label.label-age,
+.kv-card .profile-label.label-age,
+.kv-list .profile-label.label-openCount,
+.kv-card .profile-label.label-openCount,
+.kv-list .profile-label.label-tone1,
+.kv-card .profile-label.label-tone1 {
+  background: #e8f4ff;
+  color: #1677ff;
+}
+
+.label-grade,
+.label-missedDays,
+.label-tone2,
+.kv-list .profile-label.label-grade,
+.kv-card .profile-label.label-grade,
+.kv-list .profile-label.label-missedDays,
+.kv-card .profile-label.label-missedDays,
+.kv-list .profile-label.label-tone2,
+.kv-card .profile-label.label-tone2 {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.label-major,
+.label-avgDiary,
+.label-tone3,
+.kv-list .profile-label.label-major,
+.kv-card .profile-label.label-major,
+.kv-list .profile-label.label-avgDiary,
+.kv-card .profile-label.label-avgDiary,
+.kv-list .profile-label.label-tone3,
+.kv-card .profile-label.label-tone3 {
+  background: #f3e8ff;
+  color: #7b1fa2;
+}
+
+.label-gender,
+.label-avgVoice,
+.label-tone4,
+.kv-list .profile-label.label-gender,
+.kv-card .profile-label.label-gender,
+.kv-list .profile-label.label-avgVoice,
+.kv-card .profile-label.label-avgVoice,
+.kv-list .profile-label.label-tone4,
+.kv-card .profile-label.label-tone4 {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.label-onlyChild,
+.label-avgVideo,
+.label-tone5,
+.kv-list .profile-label.label-onlyChild,
+.kv-card .profile-label.label-onlyChild,
+.kv-list .profile-label.label-avgVideo,
+.kv-card .profile-label.label-avgVideo,
+.kv-list .profile-label.label-tone5,
+.kv-card .profile-label.label-tone5 {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.label-housing,
+.label-voiceSkips,
+.label-tone6,
+.kv-list .profile-label.label-housing,
+.kv-card .profile-label.label-housing,
+.kv-list .profile-label.label-voiceSkips,
+.kv-card .profile-label.label-voiceSkips,
+.kv-list .profile-label.label-tone6,
+.kv-card .profile-label.label-tone6 {
+  background: #e0f7fa;
+  color: #00838f;
+}
+
+.label-videoSkips,
+.label-tone7,
+.kv-list .profile-label.label-videoSkips,
+.kv-card .profile-label.label-videoSkips,
+.kv-list .profile-label.label-tone7,
+.kv-card .profile-label.label-tone7 {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.label-checkinHours,
+.label-tone8,
+.kv-list .profile-label.label-checkinHours,
+.kv-card .profile-label.label-checkinHours,
+.kv-list .profile-label.label-tone8,
+.kv-card .profile-label.label-tone8 {
+  background: #ede7f6;
+  color: #5e35b1;
+}
+
+.label-tone9,
+.kv-list .profile-label.label-tone9,
+.kv-card .profile-label.label-tone9 {
+  background: #e3f2fd;
+  color: #1565c0;
+}

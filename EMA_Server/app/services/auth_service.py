@@ -35,13 +35,18 @@ def get_or_create_user(db: Session, openid: str, client_type: str | None = None)
 
 
 def record_user_login(db: Session, user, client_type: str | None = None) -> dict:
-    m = models_for(client_type=client_type, user=user, db=db)
+    from app.client_types import get_current_client_type, validate_client_type
+
+    resolved = validate_client_type(client_type or get_current_client_type())
+    m = models_for(client_type=resolved, user=user, db=db)
     UserLoginLog = m.UserLoginLog
     logged_at = datetime.now()
     user.login_count = (user.login_count or 0) + 1
     principal = user_principal(user)
     log_kwargs = {"user_id": user.id, "logged_at": logged_at}
-    # wechat/app 冗余 openid；web 仅存 user_id
+    if hasattr(UserLoginLog, "client_type"):
+        log_kwargs["client_type"] = resolved
+    # 兼容旧表结构若仍有 openid 列
     if hasattr(UserLoginLog, "openid"):
         log_kwargs["openid"] = principal
     log = UserLoginLog(**log_kwargs)
@@ -54,6 +59,7 @@ def record_user_login(db: Session, user, client_type: str | None = None) -> dict
         "user_id": user.id,
         "openid": principal,
         "user_name": getattr(user, "user_name", None),
+        "client_type": resolved,
         "logged_at": logged_at.strftime("%Y-%m-%d %H:%M:%S"),
         "login_count": user.login_count,
     }
@@ -117,17 +123,16 @@ async def wx_login(db: Session, code: str, client_type: str) -> dict:
 
 
 def password_login(db: Session, user_name: str, psw: str, client_type: str = "web") -> dict:
-    """Web 端用户名密码登录，校验 users.user_name / users.psw。
+    """用户名密码登录（wechat / web / app），校验 ema_web.users.user_name / psw。
 
     普通用户若已退出研究（study_status=exited）：校验密码通过后新建一条参与记录
    （study_status=active，无 research_id），需重新知情同意并绑定基线。
+    微信小程序端仅允许普通用户（role!=0）；管理员请使用 Web 端登录。
     """
-    from app.client_types import CLIENT_TYPE_WEB, validate_client_type
+    from app.client_types import CLIENT_TYPE_WECHAT, validate_client_type
     from app.services.user_service import create_participation_user
 
     client_type = validate_client_type(client_type)
-    if client_type != CLIENT_TYPE_WEB:
-        raise ValueError("密码登录仅支持 client_type=web")
 
     m = models_for(client_type)
     User = m.User
@@ -155,6 +160,9 @@ def password_login(db: Session, user_name: str, psw: str, client_type: str = "we
 
     role = getattr(user, "role", None)
     is_admin = role == 0
+
+    if client_type == CLIENT_TYPE_WECHAT and is_admin:
+        raise ValueError("微信小程序仅支持普通用户，管理员账号请使用 Web 端登录！！")
 
     if is_admin:
         if (user.study_status or "") != "active":
@@ -195,12 +203,10 @@ def change_password(
     new_psw: str,
     client_type: str = "web",
 ) -> dict:
-    """Web 端修改密码：校验用户名与原密码后更新同名账号的全部参与记录。"""
-    from app.client_types import CLIENT_TYPE_WEB, validate_client_type
+    """修改密码：校验用户名与原密码后更新同名账号的全部参与记录（无需先登录）。"""
+    from app.client_types import validate_client_type
 
     client_type = validate_client_type(client_type)
-    if client_type != CLIENT_TYPE_WEB:
-        raise ValueError("修改密码仅支持 client_type=web")
 
     User = models_for(client_type).User
     name = (user_name or "").strip()

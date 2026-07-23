@@ -20,6 +20,7 @@ function fetchTrendsOverview(days) {
       method: "GET",
       header: {
         Authorization: "Bearer " + token,
+        "X-Client-Type": "wechat",
       },
       success: function (res) {
         var body = res.data || {};

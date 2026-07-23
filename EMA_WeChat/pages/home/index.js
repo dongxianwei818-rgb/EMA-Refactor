@@ -1,6 +1,7 @@
 var ema = require('../../utils/ema');
 var tracker = require('../../utils/tracker');
-var dailyTasksApi = require('../../utils/daily_tasks_api');
+var hydrate = require('../../utils/hydrate');
+var auth = require('../../utils/auth');
 var C = require('../../utils/constants');
 
 var META = [
@@ -18,21 +19,28 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 });
     }
-    if (!ema.hasConsent()) {
-      wx.redirectTo({ url: '/pages/onboarding/consent/index' });
+    if (!auth.isLoggedIn()) {
+      wx.reLaunch({ url: '/pages/login/index' });
       return;
     }
-    if (!ema.isResearchBound()) {
-      wx.redirectTo({ url: '/pages/onboarding/baseline/index' });
-      return;
-    }
-    tracker.trackEvent('home', 'view');
     var that = this;
-    dailyTasksApi.fetchDailyTasks().then(function () {
-      that.refresh();
-    }).catch(function () {
-      that.refresh();
-    });
+    hydrate
+      .hydrateFromServer()
+      .catch(function (err) {
+        console.warn('首页 hydrate 失败', (err && err.message) || err);
+      })
+      .then(function () {
+        if (!ema.hasConsent()) {
+          wx.redirectTo({ url: '/pages/onboarding/consent/index' });
+          return;
+        }
+        if (!ema.isResearchBound()) {
+          wx.redirectTo({ url: '/pages/onboarding/baseline/index' });
+          return;
+        }
+        tracker.trackEvent('home', 'view');
+        that.refresh();
+      });
   },
 
   refresh: function () {

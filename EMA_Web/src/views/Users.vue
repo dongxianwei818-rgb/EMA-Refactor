@@ -152,9 +152,9 @@
         </el-form-item>
         <el-form-item label="状态" prop="study_status">
           <el-select v-model="form.study_status" style="width: 100%">
-            <el-option label="active" value="active" />
-            <el-option label="consent_revoked" value="consent_revoked" />
-            <el-option label="exited" value="exited" />
+            <el-option label="激活" value="active" />
+            <el-option label="撤回同意" value="consent_revoked" />
+            <el-option label="退出研究" value="exited" />
           </el-select>
         </el-form-item>
       </el-form>

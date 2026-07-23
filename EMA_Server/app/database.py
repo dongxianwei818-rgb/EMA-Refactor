@@ -30,31 +30,32 @@ for _client_type in sorted(VALID_CLIENT_TYPES):
         autocommit=False, autoflush=False, bind=_engine
     )
 
-# 兼容旧脚本：默认指向 wechat / ema
-engine = _engines[CLIENT_TYPE_WECHAT]
-SessionLocal = _session_factories[CLIENT_TYPE_WECHAT]
+# 三端共用 ema_web：默认引擎指向 web
+engine = _engines[CLIENT_TYPE_WEB]
+SessionLocal = _session_factories[CLIENT_TYPE_WEB]
 
 
 class WechatBase(DeclarativeBase):
-    """wechat → ema：小程序表结构。"""
+    """遗留 Base（旧 wechat/ema 模型）；业务不再使用。"""
 
 
 class WebBase(DeclarativeBase):
-    """web → ema_web：Web 端表结构。"""
+    """三端共用：ema_web 表结构。"""
 
 
 class AppBase(DeclarativeBase):
-    """app → ema_app：App 端表结构。"""
+    """遗留 Base（旧 app/ema_app 模型）；业务不再使用。"""
 
 
+# 三端 ORM / create_all 统一走 WebBase（ema_web）
 BASES: dict[str, type[DeclarativeBase]] = {
-    CLIENT_TYPE_WECHAT: WechatBase,
+    CLIENT_TYPE_WECHAT: WebBase,
     CLIENT_TYPE_WEB: WebBase,
-    CLIENT_TYPE_APP: AppBase,
+    CLIENT_TYPE_APP: WebBase,
 }
 
-# 兼容旧代码中的 Base 引用（等同 wechat）
-Base = WechatBase
+# 兼容旧代码中的 Base 引用
+Base = WebBase
 
 
 def get_base(client_type: str) -> type[DeclarativeBase]:

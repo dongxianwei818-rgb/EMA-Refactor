@@ -3,7 +3,6 @@ var ema = require("../../../utils/ema");
 var consentApi = require("../../../utils/consent");
 var tracker = require("../../../utils/tracker");
 var sync = require("../../../utils/sync");
-var onboarding = require("../../../utils/onboarding");
 
 function formatConsentTime(ts) {
   if (!ts) return "";
@@ -37,11 +36,7 @@ Page({
     }
 
     if (!sync.getToken()) {
-      onboarding
-        .loginWithOnboardingRedirect({ reLaunch: true })
-        .catch(function (err) {
-          console.warn("授权页登录失败", err);
-        });
+      wx.reLaunch({ url: "/pages/login/index" });
       return;
     }
 

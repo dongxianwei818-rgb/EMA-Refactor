@@ -154,12 +154,26 @@ Page({
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 });
     }
-    tracker.trackEvent('records', 'view');
-    var raw = mergeSkipRecords(ema.getSubmissions());
-    var sessions = groupSubmissions(raw);
-    this.setData({
-      sessions: sessions,
-      totalCount: raw.length,
-    });
+    var that = this;
+    var auth = require('../../utils/auth');
+    var hydrate = require('../../utils/hydrate');
+    if (!auth.isLoggedIn()) {
+      wx.reLaunch({ url: '/pages/login/index' });
+      return;
+    }
+    hydrate
+      .hydrateFromServer()
+      .catch(function (err) {
+        console.warn('记录页 hydrate 失败', (err && err.message) || err);
+      })
+      .then(function () {
+        tracker.trackEvent('records', 'view');
+        var raw = mergeSkipRecords(ema.getSubmissions());
+        var sessions = groupSubmissions(raw);
+        that.setData({
+          sessions: sessions,
+          totalCount: raw.length,
+        });
+      });
   },
 });

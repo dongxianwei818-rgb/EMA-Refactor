@@ -1,0 +1,143 @@
+.login-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 80rpx 48rpx 48rpx;
+  background: linear-gradient(180deg, #e8f8ee 0%, #f7f8fa 42%, #f7f8fa 100%);
+}
+
+.login-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 72rpx;
+}
+
+.login-brand {
+  font-size: 72rpx;
+  font-weight: 700;
+  color: #07c160;
+  letter-spacing: 4rpx;
+}
+
+.login-sub {
+  margin-top: 16rpx;
+  font-size: 28rpx;
+  color: #666;
+}
+
+.login-form {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 40rpx 36rpx 48rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.04);
+}
+
+.field {
+  margin-bottom: 28rpx;
+}
+
+.field-label {
+  display: block;
+  font-size: 26rpx;
+  color: #333;
+  margin-bottom: 12rpx;
+}
+
+.field-input {
+  height: 88rpx;
+  padding: 0 24rpx;
+  font-size: 30rpx;
+  background: #f5f6f8;
+  border-radius: 12rpx;
+}
+
+.login-error {
+  margin-bottom: 20rpx;
+  padding: 16rpx 20rpx;
+  font-size: 26rpx;
+  color: #e64340;
+  background: #fff1f0;
+  border-radius: 12rpx;
+}
+
+.login-btn {
+  margin-top: 12rpx;
+  background: #07c160 !important;
+  border-radius: 12rpx;
+  font-size: 32rpx;
+}
+
+.login-actions {
+  margin-top: 24rpx;
+  text-align: center;
+}
+
+.link-btn {
+  font-size: 28rpx;
+  color: #07c160;
+  padding: 8rpx 16rpx;
+}
+
+.login-hint {
+  margin-top: 28rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #999;
+  line-height: 1.5;
+}
+
+.pwd-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  box-sizing: border-box;
+}
+
+.pwd-panel {
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 36rpx 32rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.pwd-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #222;
+  text-align: center;
+  margin-bottom: 28rpx;
+}
+
+.pwd-footer {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 12rpx;
+}
+
+.pwd-cancel,
+.pwd-confirm {
+  flex: 1;
+  font-size: 30rpx;
+  border-radius: 12rpx;
+  margin: 0;
+}
+
+.pwd-cancel {
+  background: #f5f6f8 !important;
+  color: #333 !important;
+}
+
+.pwd-confirm {
+  background: #07c160 !important;
+}

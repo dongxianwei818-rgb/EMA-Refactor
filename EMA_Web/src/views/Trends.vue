@@ -135,7 +135,7 @@
           <h3 class="section-title">未来 7 天风险预测</h3>
           <div class="forecast-head">
             <div class="forecast-trend">
-              <span class="forecast-trend-label">趋势走向</span>
+              <span class="forecast-trend-label">周度走向趋势</span>
               <span class="forecast-trend-value">{{
                 forecast.trendLabel || "—"
               }}</span>
@@ -144,9 +144,20 @@
               {{ forecast.peakLevelLabel || "待评估" }}
             </span>
           </div>
-          <p class="risk-summary" style="color: #faad14; margin-left: 0">
+          <p class="risk-summary" style="color: #cf1322; margin-left: 0">
             {{ forecast.summary || "" }}
           </p>
+          <div class="forecast30-stats">
+            <span
+              >重点天数 <em>{{ forecast.highRiskDays || 0 }}</em></span
+            >
+            <span
+              >中等天数 <em>{{ forecast.mediumRiskDays || 0 }}</em></span
+            >
+            <span
+              >前瞻预警 <em>{{ forecast.alertCount || forecastAlerts7.length || 0 }}</em></span
+            >
+          </div>
           <div v-if="forecast.days?.length" class="forecast-chart">
             <div
               v-for="day in forecast.days"
@@ -169,6 +180,28 @@
             <span class="legend-item legend-medium">中</span>
             <span class="legend-item legend-high">高</span>
           </div>
+          <div v-if="forecastAlerts7.length" class="forecast30-alerts">
+            <div class="alert-group-title">前瞻预警条目</div>
+            <div
+              v-for="item in forecastAlerts7"
+              :key="item.id"
+              class="alert-item"
+              :class="`alert-${item.level}`"
+            >
+              <div class="alert-item-head">
+                <span class="alert-level-tag">{{
+                  item.levelLabel ||
+                  (item.level === "danger" ? "重点关注" : "需留意")
+                }}</span>
+                <span v-if="item.metric" class="alert-category">{{
+                  item.metric
+                }}</span>
+              </div>
+              <div class="alert-title">{{ item.title }}</div>
+              <div class="alert-desc">{{ item.desc }}</div>
+            </div>
+          </div>
+          <p v-else class="risk-no-alert">暂无显著的未来 7 天预警信号。</p>
         </section>
 
         <section class="trends-section card alert-card">
@@ -265,7 +298,7 @@
           <h3 class="section-title">未来 30 天预警</h3>
           <div class="forecast-head">
             <div class="forecast-trend">
-              <span class="forecast-trend-label">月度走向</span>
+              <span class="forecast-trend-label">月度走向趋势</span>
               <span class="forecast-trend-value">{{
                 forecast30.trendLabel || "—"
               }}</span>
@@ -868,6 +901,7 @@ const current = computed(() => risk.value?.current || {});
 const forecast = computed(() => risk.value?.forecast || {});
 const forecast30 = computed(() => risk.value?.forecast30 || {});
 const forecastAlerts = computed(() => risk.value?.forecastAlerts || []);
+const forecastAlerts7 = computed(() => forecast.value?.alerts || []);
 const showRisk = computed(() => props.mode === "all" || props.mode === "risk");
 const showRiskExtras = computed(() => props.mode === "all");
 const showHistory = computed(
@@ -894,8 +928,7 @@ const emaFeatureWarnCount = computed(
   () => emaFeatureAlerts.value.filter((a) => a.level === "warn").length,
 );
 const behaviorDangerCount = computed(
-  () =>
-    behaviorAnalysisAlerts.value.filter((a) => a.level === "danger").length,
+  () => behaviorAnalysisAlerts.value.filter((a) => a.level === "danger").length,
 );
 const behaviorWarnCount = computed(
   () => behaviorAnalysisAlerts.value.filter((a) => a.level === "warn").length,
@@ -904,7 +937,7 @@ const behaviorWarnCount = computed(
 const filteredAlerts = computed(() => {
   const list = (risk.value?.alerts || []).filter((item) => {
     const cat = item.category || "综合";
-    return cat !== EMA_FEATURE_CAT && cat !== BEHAVIOR_ANALYSIS_CAT;
+    return cat;
   });
   if (!alertCategoryFilter.value) return list;
   return list.filter(
@@ -916,7 +949,7 @@ const alertCategoryCounts = computed(() => {
   const counts = {};
   for (const item of risk.value?.alerts || []) {
     const cat = item.category || "综合";
-    if (cat === EMA_FEATURE_CAT || cat === BEHAVIOR_ANALYSIS_CAT) continue;
+    // if (cat === EMA_FEATURE_CAT || cat === BEHAVIOR_ANALYSIS_CAT) continue;
     counts[cat] = (counts[cat] || 0) + 1;
   }
   return counts;
@@ -1170,7 +1203,8 @@ const summaryTitle = computed(() => {
 
 const summarySub = computed(() => {
   if (props.mode === "history") return "EMA 指标 · 运动步数";
-  if (props.mode === "risk") return "当前评估 · 未来预测 · 30天预警 · 五特性/行为预警";
+  if (props.mode === "risk")
+    return "当前评估 · 未来预测 · 30天预警 · 五特性/行为预警";
   return "当前评估 · 未来预测 · 五特性/行为预警 · 特征预测 · 历史趋势";
 });
 const summarySub2 = computed(() => {

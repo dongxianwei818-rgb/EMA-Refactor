@@ -11,8 +11,20 @@ Page({
     this.refresh();
   },
   onShow: function () {
-    tracker.trackEvent("my", "behavior_detail_view");
-    this.refresh();
+    var that = this;
+    var hydrate = require("../../../utils/hydrate");
+    var auth = require("../../../utils/auth");
+    if (!auth.isLoggedIn()) {
+      wx.reLaunch({ url: "/pages/login/index" });
+      return;
+    }
+    hydrate
+      .hydrateFromServer()
+      .catch(function () {})
+      .then(function () {
+        tracker.trackEvent("my", "behavior_detail_view");
+        that.refresh();
+      });
   },
   refresh: function () {
     var detail = behaviorUtil.buildBehaviorDetailSections();
